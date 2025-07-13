@@ -1,0 +1,22 @@
+# configs/email.yaml
+# 只负责邮件发送账户 (SMTP) 的配置
+
+smtp_accounts:
+  gmail_personal:
+    host: "smtp.gmail.com"
+    port: 587
+    username: "your-personal@gmail.com"
+    password: "GMAIL_APP_PASSWORD_1"
+    from_alias: "你的个人邮箱"
+  gmail_work:
+    host: "smtp.gmail.com"
+    port: 587
+    username: "your-work@gmail.com"
+    password: "GMAIL_APP_PASSWORD_2"
+    from_alias: "你的工作团队"
+  office365_main:
+    host: "smtp.office365.com"
+    port: 587
+    username: "main@your-domain.com"
+    password: "OFFICE365_PASSWORD"
+    from_alias: "公司主邮箱"

@@ -1,0 +1,39 @@
+# configs/ai.yaml
+# 所有与 AI 模型和提示词相关的配置
+
+active_provider: "deepseek" # 可选: gemini, doubao, deepseek
+
+providers:
+  gemini:
+    api_key: "YOUR_GEMINI_API_KEY"
+    model: "gemini-1.5-flash-latest"
+  doubao:
+    api_key: "YOUR_DOUBAO_API_KEY"
+    secret_key: "YOUR_DOUBAO_SECRET_KEY"
+  deepseek:
+    api_key: "YOUR_DEEPSEEK_API_KEY"
+    model: "deep-seek-v2"
+
+# 预设的邮件生成基础提示词
+prompts:
+  weekly_report: "总结本周项目的主要进展、挑战及下周计划。"
+  marketing_campaign: "介绍我们的新产品特性，并提供一个限时优惠码。"
+
+# 结构化指令，用于组合和精细化控制 AI 生成
+structured_instructions:
+  tone_formal: "请使用非常正式和专业的商务书面语。"
+  tone_casual: "请使用轻松、友好、非正式的口吻，可以适当使用 emoji。"
+  format_json_array: "严格以 JSON 数组格式返回结果，数组的每个元素都是一份邮件正文的字符串。不要添加任何额外的解释或文本。"
+  add_call_to_action: "在邮件末尾，加入明确的号召性用语（Call to Action），鼓励用户点击链接或回复邮件。"
+
+# (优化第2点) 将 DeepSeek 的生成模板移到此处
+generation_template: >-
+  基于以下核心思想，为我生成 %d 份措辞不同但主题思想完全相同的专业邮件正文。
+  核心思想: "%s"
+
+  请严格按照以下要求操作：
+  1. 每一份邮件正文都必须是独立的、完整的。
+  2. 每一份邮件的语气、句式或侧重点应有细微差别，但核心信息和意图保持不变。
+  3. 不要添加任何额外的解释或文本，只返回一个格式正确的 JSON 数组，其中每个元素都是一份邮件正文的字符串。
+
+  例如: ["邮件正文1", "邮件正文2", ...]
