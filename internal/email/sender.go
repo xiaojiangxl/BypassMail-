@@ -2,8 +2,8 @@ package email
 
 import (
 	"crypto/tls"
+	"emailer-ai/internal/config" // 假设模块名是 project
 	"fmt"
-	"project/internal/config" // 假设模块名是 project
 
 	"gopkg.in/gomail.v2"
 )

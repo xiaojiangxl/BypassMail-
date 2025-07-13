@@ -1,8 +1,8 @@
 package llm
 
 import (
+	"emailer-ai/internal/config" //
 	"fmt"
-	"project/internal/config" // 假设你的项目模块名叫 project
 )
 
 func NewProvider(cfg *config.Config) (LLMProvider, error) {

@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"project/internal/config"
-	"project/internal/email"
-	"project/internal/llm"
+	"emailer-ai/internal/config"
+	"emailer-ai/internal/email"
+	"emailer-ai/internal/llm"
 )
 
 func main() {
