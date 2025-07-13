@@ -55,6 +55,9 @@ type AppConfig struct {
 type SendingStrategy struct {
 	Policy   string   `yaml:"policy"`
 	Accounts []string `yaml:"accounts"`
+	// 新增字段
+	MinDelay int `yaml:"min_delay"`
+	MaxDelay int `yaml:"max_delay"`
 }
 
 // --- 总配置加载 ---

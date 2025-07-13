@@ -17,6 +17,9 @@ type TemplateData struct {
 	File  string
 	Date  string // 通常在发送时动态生成
 	Img   string // 图片链接
+	// 新增字段
+	Sender    string // 发件人账号
+	Recipient string // 收件人地址
 }
 
 // ParseTemplate 函数保持不变

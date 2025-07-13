@@ -32,6 +32,57 @@ type RecipientData struct {
 	CustomPrompt string
 }
 
+// testAccounts 函数用于测试发件箱账号的连通性
+func testAccounts(cfg *config.Config, strategyName string) {
+	strategy, ok := cfg.App.SendingStrategies[strategyName]
+	if !ok {
+		log.Fatalf("❌ 错误：找不到名为 '%s' 的发送策略。", strategyName)
+	}
+
+	log.Printf("🧪 开始测试策略 '%s' 中的 %d 个发件账户...", strategyName, len(strategy.Accounts))
+	var wg sync.WaitGroup
+	results := make(chan string, len(strategy.Accounts))
+
+	for _, accountName := range strategy.Accounts {
+		wg.Add(1)
+		go func(accName string) {
+			defer wg.Done()
+			smtpCfg, ok := cfg.Email.SMTPAccounts[accName]
+			if !ok {
+				results <- fmt.Sprintf("  - [ %-20s ] ❌ 配置未找到", accName)
+				return
+			}
+			sender := email.NewSender(smtpCfg)
+			// DialAndSend(nil) 会尝试连接并认证，是很好的测试方法
+			// 我们传一个空消息，它会在发送前失败，但已完成了连接测试
+			if err := sender.Send("", "", ""); err != nil {
+				// 真正的发送错误我们不关心，只关心连接和认证相关的错误
+				// 不同的SMTP服务器返回的认证失败信息不同，这里做一些兼容
+				if strings.Contains(strings.ToLower(err.Error()), "authentication failed") ||
+					strings.Contains(strings.ToLower(err.Error()), "username and password not accepted") ||
+					strings.Contains(err.Error(), "connection refused") ||
+					strings.Contains(err.Error(), "timeout") {
+					results <- fmt.Sprintf("  - [ %-20s ] ❌ 失败: %v", smtpCfg.Username, err)
+				} else {
+					// 其他错误（如 "no recipient"）意味着认证成功
+					results <- fmt.Sprintf("  - [ %-20s ] ✔️ 成功", smtpCfg.Username)
+				}
+			} else {
+				// 如果连发送空邮件都成功了，那说明配置完全没问题
+				results <- fmt.Sprintf("  - [ %-20s ] ✔️ 成功", smtpCfg.Username)
+			}
+		}(accountName)
+	}
+
+	wg.Wait()
+	close(results)
+
+	for res := range results {
+		log.Println(res)
+	}
+	log.Println("✅ 账号测试完成。")
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
@@ -43,6 +94,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  go run ./cmd/bypass-mail/ -subject=\"季度更新\" -recipients-file=\"path/to/list.csv\" -prompt-name=\"weekly_report\" -strategy=\"round_robin_gmail\"\n\n")
 		fmt.Fprintf(os.Stderr, "示例 (单次发送):\n")
 		fmt.Fprintf(os.Stderr, "  go run ./cmd/bypass-mail/ -subject=\"紧急通知\" -recipients=\"boss@example.com\" -prompt=\"服务器将重启\"\n\n")
+		fmt.Fprintf(os.Stderr, "示例 (测试账号):\n")
+		fmt.Fprintf(os.Stderr, "  go run ./cmd/bypass-mail/ -test-accounts -strategy=\"default\"\n\n")
 		fmt.Fprintf(os.Stderr, "可用参数:\n")
 		flag.PrintDefaults()
 	}
@@ -70,6 +123,7 @@ func main() {
 	configPath := flag.String("config", "configs/config.yaml", "主策略配置文件路径")
 	aiConfigPath := flag.String("ai-config", "configs/ai.yaml", "AI 配置文件路径")
 	emailConfigPath := flag.String("email-config", "configs/email.yaml", "Email 配置文件路径")
+	testAccountsFlag := flag.Bool("test-accounts", false, "仅测试发件策略中的账户是否可用，不发送邮件")
 
 	flag.Parse()
 
@@ -80,24 +134,33 @@ func main() {
 	}
 	log.Println("✅ 所有配置加载成功")
 
-	// 验证发送策略
+	// --- 如果是测试模式，执行测试并退出 ---
+	if *testAccountsFlag {
+		testAccounts(cfg, *strategyName)
+		os.Exit(0)
+	}
+
+	// --- 3. 验证发送策略 ---
 	strategy, ok := cfg.App.SendingStrategies[*strategyName]
 	if !ok {
 		log.Fatalf("❌ 错误：找不到名为 '%s' 的发送策略。", *strategyName)
 	}
 	log.Printf("✅ 使用发件策略: '%s' (策略: %s, 包含 %d 个账号)", *strategyName, strategy.Policy, len(strategy.Accounts))
+	if strategy.MaxDelay > 0 {
+		log.Printf("✅ 发送延时已启用: %d - %d 秒之间。", strategy.MinDelay, strategy.MaxDelay)
+	}
 
-	// --- 3. 加载收件人数据 ---
+	// --- 4. 加载收件人数据 ---
 	recipientsData := loadRecipients(*recipientsFile, *recipientsStr)
 	if len(recipientsData) == 0 {
 		log.Fatal("❌ 错误: 必须提供至少一个收件人。使用 -recipients 或 -recipients-file 指定。")
 	}
 	log.Printf("✅ 成功加载 %d 位收件人的数据。", len(recipientsData))
 
-	// --- 4. 为每个收件人构建最终提示词 ---
+	// --- 5. 为每个收件人构建最终提示词 ---
 	finalPrompts := buildFinalPrompts(recipientsData, *prompt, *promptName, *instructionNames, cfg.AI)
 
-	// --- 5. 初始化 AI 并生成邮件变体 ---
+	// --- 6. 初始化 AI 并生成邮件变体 ---
 	count := len(recipientsData)
 	provider, err := llm.NewProvider(cfg.AI)
 	if err != nil {
@@ -123,7 +186,7 @@ func main() {
 		log.Printf("✅ AI 已成功生成 %d 份不同文案。", len(variations))
 	}
 
-	// --- 6. 验证模板并并发发送 ---
+	// --- 7. 验证模板并并发发送 ---
 	templatePath, ok := cfg.App.Templates[*templateName]
 	if !ok {
 		log.Fatalf("❌ 错误：找不到名为 '%s' 的模板。", *templateName)
@@ -136,6 +199,13 @@ func main() {
 		wg.Add(1)
 		go func(recipientIndex int, recipient RecipientData) {
 			defer wg.Done()
+
+			// --- 实现发送延时 ---
+			if strategy.MaxDelay > 0 {
+				delay := rand.Intn(strategy.MaxDelay-strategy.MinDelay+1) + strategy.MinDelay
+				log.Printf("  ...等待 %d 秒后发送给 %s...", delay, recipient.Email)
+				time.Sleep(time.Duration(delay) * time.Second)
+			}
 
 			logEntry := logger.LogEntry{
 				Timestamp: time.Now().Format("2006-01-02 15:04:05"),
@@ -161,13 +231,15 @@ func main() {
 
 			// --- 填充个人化模板数据 ---
 			templateData := &email.TemplateData{
-				Content: content,
-				Title:   coalesce(recipient.Title, *defaultTitle, *subject),
-				Name:    coalesce(recipient.Name, *defaultName),
-				URL:     coalesce(recipient.URL, *defaultURL),
-				File:    coalesce(recipient.File, *defaultFile),
-				Img:     coalesce(recipient.Img, *defaultImg),
-				Date:    recipient.Date,
+				Content:   content,
+				Title:     coalesce(recipient.Title, *defaultTitle, *subject),
+				Name:      coalesce(recipient.Name, *defaultName),
+				URL:       coalesce(recipient.URL, *defaultURL),
+				File:      coalesce(recipient.File, *defaultFile),
+				Img:       coalesce(recipient.Img, *defaultImg),
+				Date:      recipient.Date,
+				Sender:    smtpCfg.Username, // 填充发件人
+				Recipient: recipient.Email,  // 填充收件人
 			}
 			finalSubject := coalesce(recipient.Title, *subject)
 			logEntry.Subject = finalSubject
@@ -198,7 +270,7 @@ func main() {
 	wg.Wait()
 	close(logChan) // 所有协程完成，关闭通道
 
-	// --- 7. 收集日志并生成报告 ---
+	// --- 8. 收集日志并生成报告 ---
 	var logEntries []logger.LogEntry
 	for entry := range logChan {
 		logEntries = append(logEntries, entry)
