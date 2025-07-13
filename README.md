@@ -28,4 +28,26 @@ bypass-mail/
 
 ## 运行
 
-> go run ./cmd/bypass-mail/ -subject="项目更新" -prompt="本周项目进展顺利，下周计划..." -recipients="a@a.com,b@b.com"
+批量发送
+
+```
+go run ./cmd/bypass-mail/ \
+    -subject="项目季度回顾与展望" \
+    -recipients-file="recipients.txt" \
+    -prompt-name="weekly_report" \
+    -template="formal" \
+    -from="marketing" \
+    -title="Q3 季度重要更新" \
+    -name="尊敬的合作伙伴" \
+    -url="https://your-company.com/q3-report"
+```
+
+单独发送
+
+```
+go run ./cmd/bypass-mail/ \
+    -subject="一个临时的紧急通知" \
+    -recipients="boss@company.com" \
+    -prompt="今晚服务器需要紧急维护，预计从晚上10点到11点服务不可用，请周知。" \
+    -from="default"
+```

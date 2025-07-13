@@ -3,55 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
     <style>
-        body {
-            font-family: Arial, 'Microsoft Yahei', sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 600px;
-            margin: 20px auto;
-            background-color: #ffffff;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }
-        .header {
-            background-color: #007bff;
-            color: #ffffff;
-            padding: 20px;
-            text-align: center;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-        }
-        .content {
-            padding: 30px;
-        }
-        .footer {
-            background-color: #f8f9fa;
-            text-align: center;
-            padding: 15px;
-            font-size: 12px;
-            color: #6c757d;
-        }
+        body { font-family: Arial, 'Microsoft Yahei', sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 20px auto; background-color: #fff; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .header { background-color: #007bff; color: #ffffff; padding: 20px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .content { padding: 30px; }
+        .extra-info { padding: 0 30px 10px; font-size: 14px; color: #555; }
+        .footer { background-color: #f8f9fa; text-align: center; padding: 15px; font-size: 12px; color: #6c757d; }
+        img.banner { max-width: 100%; height: auto; }
     </style>
 </head>
 <body>
     <div class="container">
+        {{if .Img}}
+        <div class="banner-container">
+            <img src="{{.Img}}" alt="Banner" class="banner">
+        </div>
+        {{end}}
         <div class="header">
-            <h1>通知</h1>
+            <h1>{{.Title | default "通知"}}</h1>
         </div>
         <div class="content">
+            {{if .Name}}
+            <p><strong>尊敬的 {{.Name}},</strong></p>
+            {{end}}
             <p>{{.Content}}</p>
         </div>
+        <div class="extra-info">
+            {{if .File}}
+            <p>附件信息: <a href="{{.File}}">点击查看</a></p>
+            {{end}}
+            {{if .URL}}
+            <p>更多详情请访问: <a href="{{.URL}}">{{.URL}}</a></p>
+            {{end}}
+        </div>
         <div class="footer">
-            <p>此邮件由 BypassMail 自动生成</p>
+            <p>此邮件由 BypassMail 自动生成 | 日期: {{.Date}}</p>
         </div>
     </div>
 </body>

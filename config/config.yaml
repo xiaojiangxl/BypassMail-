@@ -1,41 +1,43 @@
-# 选择要使用的 AI 提供商: "gemini", "doubao", "deepseek"
+# config/config.yaml
+
+# 激活的 AI 提供商: "gemini", "doubao", "deepseek"
 active_provider: "gemini"
 
-# 各个 AI 提供商的配置
+# 各個 AI 提供商的配置
 providers:
   gemini:
     api_key: "YOUR_GEMINI_API_KEY"
-    # 可以根据需要添加其他模型名称，如 "gemini-1.5-pro-latest"
-    model: "gemini-1.5-flash-latest" 
-  
+    model: "gemini-1.5-flash-latest"
   doubao:
-    # 豆包模型的 API Key 和 Secret Key 通常来自火山引擎或飞书开放平台
     api_key: "YOUR_DOUBAO_API_KEY"
-    secret_key: "YOUR_DOUBAO_SECRET_KEY" 
-    # API endpoint 可能需要在此处指定
-    # base_url: "https://ark.cn-beijing.volces.com/api/v3/"
-
+    secret_key: "YOUR_DOUBAO_SECRET_KEY"
   deepseek:
     api_key: "YOUR_DEEPSEEK_API_KEY"
-    # DeepSeek 的 API endpoint
-    # base_url: "https://api.deepseek.com/v1"
     model: "deepseek-chat"
 
-# ... (active_provider 和 providers 部分不变)
+# 预设的邮件生成提示词
+prompts:
+  weekly_report: "以简洁、专业的口吻，总结本周项目的主要进展、遇到的挑战以及下周的详细计划。"
+  marketing_campaign: "撰写一封吸引人的营销邮件，介绍我们的新产品特性，并提供一个限时优惠码。"
+  team_update: "向团队成员同步一个重要的决定，解释其背后的原因，并鼓励大家提出问题。"
 
-# SMTP 邮件服务器配置
-smtp:
-  host: "smtp.gmail.com"
-  port: 587
-  username: "your-email@gmail.com"
-  password: "YOUR_GMAIL_APP_PASSWORD" 
-  from_alias: "你的名字或团队"
+# SMTP 邮件服务器配置 (支持多邮箱分组)
+smtp_groups:
+  default: # 默认发件箱
+    host: "smtp.gmail.com"
+    port: 587
+    username: "your-default-email@gmail.com"
+    password: "YOUR_GMAIL_APP_PASSWORD"
+    from_alias: "默认团队名"
+  marketing: # 市场活动专用
+    host: "smtp.office365.com"
+    port: 587
+    username: "marketing@your-domain.com"
+    password: "YOUR_OFFICE365_PASSWORD"
+    from_alias: "市场部"
 
 # 邮件模板配置
 templates:
-  # 默认模板
   default: "templates/default_template.html"
-  # 正式商务模板
   formal: "templates/formal_template.html"
-  # 轻松非正式模板
   casual: "templates/casual_template.html"

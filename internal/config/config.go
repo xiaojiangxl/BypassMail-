@@ -35,17 +35,13 @@ type ProviderConfigs struct {
 	Deepseek DeepseekConfig `yaml:"deepseek"`
 }
 
+// Config 结构体现在包含提示词和 SMTP 分组
 type Config struct {
-	ActiveProvider string          `yaml:"active_provider"`
-	Providers      ProviderConfigs `yaml:"providers"`
-	SMTP           SMTPConfig      `yaml:"smtp"`
-}
-
-type Config struct {
-	ActiveProvider string            `yaml:"active_provider"`
-	Providers      ProviderConfigs   `yaml:"providers"`
-	SMTP           SMTPConfig        `yaml:"smtp"`
-	Templates      map[string]string `yaml:"templates"` // 新增字段
+	ActiveProvider string                `yaml:"active_provider"`
+	Providers      ProviderConfigs       `yaml:"providers"`
+	Prompts        map[string]string     `yaml:"prompts"`     // 新增：预设提示词
+	SMTPGroups     map[string]SMTPConfig `yaml:"smtp_groups"` // 修改：支持多 SMTP 配置
+	Templates      map[string]string     `yaml:"templates"`
 }
 
 func Load(path string) (*Config, error) {
