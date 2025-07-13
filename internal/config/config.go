@@ -41,6 +41,13 @@ type Config struct {
 	SMTP           SMTPConfig      `yaml:"smtp"`
 }
 
+type Config struct {
+	ActiveProvider string            `yaml:"active_provider"`
+	Providers      ProviderConfigs   `yaml:"providers"`
+	SMTP           SMTPConfig        `yaml:"smtp"`
+	Templates      map[string]string `yaml:"templates"` // 新增字段
+}
+
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

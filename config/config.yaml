@@ -21,12 +21,21 @@ providers:
     # base_url: "https://api.deepseek.com/v1"
     model: "deepseek-chat"
 
+# ... (active_provider 和 providers 部分不变)
+
 # SMTP 邮件服务器配置
 smtp:
   host: "smtp.gmail.com"
   port: 587
   username: "your-email@gmail.com"
-  # 强烈建议使用 App Password (应用专用密码)
   password: "YOUR_GMAIL_APP_PASSWORD" 
-  # 发件人显示名称
   from_alias: "你的名字或团队"
+
+# 邮件模板配置
+templates:
+  # 默认模板
+  default: "templates/default_template.html"
+  # 正式商务模板
+  formal: "templates/formal_template.html"
+  # 轻松非正式模板
+  casual: "templates/casual_template.html"
