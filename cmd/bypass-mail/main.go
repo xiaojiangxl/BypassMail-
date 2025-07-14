@@ -19,6 +19,10 @@ import (
 	"emailer-ai/internal/logger" // 导入新的日志包
 )
 
+var (
+	version = "dev" // 預設值為 'dev'，可以透過 ldflags 在編譯時覆寫
+)
+
 // RecipientData 用于存储从 CSV 或其他来源读取的每一行个人化数据
 type RecipientData struct {
 	Email string
@@ -85,7 +89,13 @@ func testAccounts(cfg *config.Config, strategyName string) {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
+	showVersion := flag.Bool("version", false, "显示工具的版本号并退出")
+	flag.Parse()
 
+	if *showVersion {
+		fmt.Printf("BypassMail version: %s\n", version)
+		os.Exit(0)
+	}
 	// --- 1. 命令行参数定义与文档 ---
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "BypassMail: AI 驱动的个性化邮件批量发送工具。\n\n")

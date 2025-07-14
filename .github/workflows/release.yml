@@ -21,6 +21,10 @@ jobs:
         # 定义不同的目标平台
         goos: [linux, windows, darwin] # darwin 是 macOS 的内部名称
         goarch: [amd64]
+        # 使用 include 来增加特定的组合
+        include:
+          - goos: darwin
+            goarch: arm64 # 增加 M1 (arm64) 架构的 macOS
 
     # 任务步骤
     steps:
@@ -34,8 +38,8 @@ jobs:
         with:
           go-version: '1.18' # 您可以根据需要更改 Go 版本
 
-      # 步骤3：交叉编译
-      - name: Build
+      # 步骤3：交叉编译并注入版本号
+      - name: Build with version injection
         # 定义环境变量 GOOS 和 GOARCH 以进行交叉编译
         env:
           GOOS: ${{ matrix.goos }}
@@ -44,13 +48,18 @@ jobs:
         # -o 指定输出路径和文件名
         # -v 打印编译的包名
         # -ldflags "-s -w" 用于减小二进制文件体积
-        run: go build -v -o build/bypass-mail-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/bypass-mail/
+        # -ldflags "-X main.version=..." 用于将版本号变量写入 main package 的 version 变量中
+        run: |
+          # 从触发工作流的 Git ref (例如 refs/tags/v1.0.0) 中提取版本号
+          VERSION=$(echo $GITHUB_REF | sed 's/refs\/tags\///')
+          echo "Building version $VERSION for ${GOOS}/${GOARCH}..."
+          go build -v -ldflags="-s -w -X main.version=$VERSION" -o build/bypass-mail-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/bypass-mail/
 
       # 步骤4：为 Windows 的二进制文件添加 .exe 后缀
       - name: Add .exe to windows binary
         if: matrix.goos == 'windows'
         run: mv build/bypass-mail-windows-amd64 build/bypass-mail-windows-amd64.exe
-      
+
       # 步骤5：将编译好的二进制文件作为产物上传，以便发布任务使用
       - name: Upload artifact
         uses: actions/upload-artifact@v4
