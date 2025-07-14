@@ -1,14 +1,20 @@
 package email
 
 import (
+	"bytes"
 	"crypto/tls"
-	"emailer-ai/internal/config"
+	"encoding/base64"
 	"fmt"
+	"io/ioutil"
+	"mime/multipart"
 	"net/smtp"
+	"path/filepath"
 	"strings"
+
+	"emailer-ai/internal/config"
 )
 
-// Sender 结构体不再依赖 gomail
+// Sender 结构体
 type Sender struct {
 	cfg  config.SMTPConfig
 	from string
@@ -16,40 +22,112 @@ type Sender struct {
 
 // NewSender 创建一个新的 Sender 实例
 func NewSender(cfg config.SMTPConfig) *Sender {
-	// From 头部需要包含别名和邮箱地址
 	fromAddress := fmt.Sprintf("%s <%s>", cfg.FromAlias, cfg.Username)
 	if cfg.FromAlias == "" {
 		fromAddress = cfg.Username
 	}
-
 	return &Sender{
 		cfg:  cfg,
 		from: fromAddress,
 	}
 }
 
-// Send 使用 Go 标准库 net/smtp 手动执行邮件发送
-func (s *Sender) Send(subject, htmlBody string, to string) error {
-	// 服务器地址
-	serverAddr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
-
-	// 构建邮件头部和正文
-	// 注意：这里的 \r\n 是 SMTP 协议的标准换行符
+// buildPlainMessage 构建纯文本/HTML邮件
+func (s *Sender) buildPlainMessage(subject, htmlBody, to string) []byte {
 	var msgBuilder strings.Builder
 	msgBuilder.WriteString("From: " + s.from + "\r\n")
 	msgBuilder.WriteString("To: " + to + "\r\n")
 	msgBuilder.WriteString("Subject: " + subject + "\r\n")
 	msgBuilder.WriteString("MIME-version: 1.0;\r\n")
 	msgBuilder.WriteString("Content-Type: text/html; charset=\"UTF-8\";\r\n")
-	msgBuilder.WriteString("\r\n") // 头部和正文的空行分隔
+	msgBuilder.WriteString("\r\n")
 	msgBuilder.WriteString(htmlBody)
+	return []byte(msgBuilder.String())
+}
 
-	msg := []byte(msgBuilder.String())
+// buildMIMEMessage 构建带附件的MIME邮件
+func (s *Sender) buildMIMEMessage(subject, htmlBody, to, attachmentPath string) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	writer := multipart.NewWriter(buf)
 
-	// 认证信息
+	// 设置邮件头
+	headers := make(map[string]string)
+	headers["From"] = s.from
+	headers["To"] = to
+	headers["Subject"] = subject
+	headers["MIME-Version"] = "1.0"
+	headers["Content-Type"] = "multipart/mixed; boundary=" + writer.Boundary()
+
+	var headerBuilder strings.Builder
+	for k, v := range headers {
+		headerBuilder.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
+	}
+	headerBuilder.WriteString("\r\n") //
+	// 写入 multipart 的正文前，先写入 header
+	finalBuf := new(bytes.Buffer)
+	finalBuf.WriteString(headerBuilder.String())
+
+	// HTML 部分
+	htmlPart, err := writer.CreatePart(map[string][]string{
+		"Content-Type":              {"text/html; charset=\"UTF-8\""},
+		"Content-Transfer-Encoding": {"8bit"},
+	})
+	if err != nil {
+		return nil, err
+	}
+	_, err = htmlPart.Write([]byte(htmlBody))
+	if err != nil {
+		return nil, err
+	}
+
+	// 附件部分
+	fileBytes, err := ioutil.ReadFile(attachmentPath)
+	if err != nil {
+		return nil, fmt.Errorf("无法读取附件 '%s': %w", attachmentPath, err)
+	}
+
+	attachmentPart, err := writer.CreatePart(map[string][]string{
+		"Content-Type":              {"application/octet-stream"},
+		"Content-Transfer-Encoding": {"base64"},
+		"Content-Disposition":       {fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(attachmentPath))},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	b64 := make([]byte, base64.StdEncoding.EncodedLen(len(fileBytes)))
+	base64.StdEncoding.Encode(b64, fileBytes)
+	_, err = attachmentPart.Write(b64)
+	if err != nil {
+		return nil, err
+	}
+
+	writer.Close()
+
+	// 将 multipart 的内容追加到 header 后面
+	finalBuf.Write(buf.Bytes())
+
+	return finalBuf.Bytes(), nil
+}
+
+// Send 函数现在支持附件
+func (s *Sender) Send(subject, htmlBody string, to string, attachmentPath string) error {
+	serverAddr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 	auth := smtp.PlainAuth("", s.cfg.Username, s.cfg.Password, s.cfg.Host)
 
-	// 手动执行 STARTTLS 流程
+	var msg []byte
+	var err error
+
+	if attachmentPath != "" {
+		fmt.Printf("  📎 发现附件，构建MIME邮件: %s\n", attachmentPath)
+		msg, err = s.buildMIMEMessage(subject, htmlBody, to, attachmentPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		msg = s.buildPlainMessage(subject, htmlBody, to)
+	}
+
 	// 1. 建立 TCP 连接
 	c, err := smtp.Dial(serverAddr)
 	if err != nil {
@@ -78,16 +156,8 @@ func (s *Sender) Send(subject, htmlBody string, to string) error {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
 
-	// 5. 发送邮件
-	if err = smtp.SendMail(serverAddr, auth, s.cfg.Username, []string{to}, msg); err != nil {
-		// 如果上面的流程可以，但 SendMail 失败，我们尝试在同一个连接上发送
-		if err_send := sendData(c, s.cfg.Username, to, msg); err_send != nil {
-			// 如果两种方式都失败，返回原始的 SendMail 错误并附加我们的尝试错误
-			return fmt.Errorf("smtp.SendMail failed (%v) and subsequent attempt failed (%v)", err, err_send)
-		}
-	}
-
-	return nil
+	// 5. 在同一个连接上发送邮件数据
+	return sendData(c, s.cfg.Username, to, msg)
 }
 
 // sendData 是一个辅助函数，在已建立的连接上发送邮件数据
