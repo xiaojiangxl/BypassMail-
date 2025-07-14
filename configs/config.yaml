@@ -1,0 +1,26 @@
+# configs/config.yaml
+# 负责核心策略、模板和默认值的配置
+
+# 邮件发送策略
+sending_strategies:
+  default:
+    policy: "round-robin"
+    accounts:
+      - "gmail_personal"
+  round_robin_gmail:
+    policy: "round-robin"
+    accounts:
+      - "gmail_personal"
+      - "gmail_work"
+  random_all:
+    policy: "random"
+    accounts:
+      - "gmail_personal"
+      - "gmail_work"
+      - "office365_main"
+
+# 邮件模板配置
+templates:
+  default: "templates/default_template.html"
+  formal: "templates/formal_template.html"
+  casual: "templates/casual_template.html"

@@ -1,0 +1,53 @@
+# configs/config.yaml
+# 负责核心策略、模板和默认值的配置
+
+# 邮件发送策略
+sending_strategies:
+  default:
+    policy: "round-robin"
+    accounts:
+      - "gmail_personal"
+    # 新增：最小和最大发送延迟（单位：秒）
+    min_delay: 5
+    max_delay: 15
+  round_robin_gmail:
+    policy: "round-robin"
+    accounts:
+      - "gmail_personal"
+      - "gmail_work"
+    min_delay: 10
+    max_delay: 30
+  random_all:
+    policy: "random"
+    accounts:
+      - "gmail_personal"
+      - "gmail_work"
+      - "office365_main"
+    min_delay: 8
+    max_delay: 20
+
+# 邮件模板配置
+templates:
+  default: "templates/default_template.html"
+  formal: "templates/formal_template.html"
+  casual: "templates/casual_template.html"
+
+smtp_accounts:
+  gmail_personal:
+    host: "smtp.gmail.com"
+    port: 
+    username: "your-work@gmail.com"
+    password: "GMAIL_APP_PASSWORD_2"
+    from_alias: "测试邮箱"
+  gmail_work:
+    host: "smtp.gmail.com"
+    port: 587
+    username: "your-work@gmail.com"
+    password: "GMAIL_APP_PASSWORD_2"
+    from_alias: "你的工作团队"
+  office365_main:
+    host: "smtp.office365.com"
+    port: 587
+    username: "main@your-domain.com"
+    password: "OFFICE365_PASSWORD"
+    from_alias: "公司主邮箱"
