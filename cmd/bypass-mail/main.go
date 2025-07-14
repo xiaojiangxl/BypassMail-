@@ -89,14 +89,11 @@ func testAccounts(cfg *config.Config, strategyName string) {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	showVersion := flag.Bool("version", false, "显示工具的版本号并退出")
-	flag.Parse()
 
-	if *showVersion {
-		fmt.Printf("BypassMail version: %s\n", version)
-		os.Exit(0)
-	}
 	// --- 1. 命令行参数定义与文档 ---
+	// 将所有标志定义放在一起
+	showVersion := flag.Bool("version", false, "显示工具的版本号并退出")
+
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "BypassMail: AI 驱动的个性化邮件批量发送工具。\n\n")
 		fmt.Fprintf(os.Stderr, "使用方法:\n  go run ./cmd/bypass-mail/ [flags]\n\n")
@@ -135,9 +132,26 @@ func main() {
 	emailConfigPath := flag.String("email-config", "configs/email.yaml", "Email 配置文件路径")
 	testAccountsFlag := flag.Bool("test-accounts", false, "仅测试发件策略中的账户是否可用，不发送邮件")
 
+	// --- 1.5. 解析所有命令行参数 ---
 	flag.Parse()
 
-	// --- 2. 加载和验证配置 ---
+	// --- 1.6. 在解析后，立即检查版本标志 ---
+	if *showVersion {
+		fmt.Printf("BypassMail version: %s\n", version)
+		os.Exit(0)
+	}
+
+	// --- 2. 检查并生成初始配置 ---
+	created, err := config.GenerateInitialConfigs(*configPath, *aiConfigPath, *emailConfigPath)
+	if err != nil {
+		log.Fatalf("❌ 初始化配置失败: %v", err)
+	}
+	if created {
+		log.Println("✅ 默认配置文件已生成。请根据您的需求修改 'configs' 目录下的 .yaml 文件，特别是 API Keys 和 SMTP 账户信息，然后重新运行程序。")
+		os.Exit(0)
+	}
+
+	// --- 3. 加载和验证配置 ---
 	cfg, err := config.Load(*configPath, *aiConfigPath, *emailConfigPath)
 	if err != nil {
 		log.Fatalf("❌ 加载配置失败: %v", err)
@@ -150,7 +164,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	// --- 3. 验证发送策略 ---
+	// --- 4. 验证发送策略 ---
 	strategy, ok := cfg.App.SendingStrategies[*strategyName]
 	if !ok {
 		log.Fatalf("❌ 错误：找不到名为 '%s' 的发送策略。", *strategyName)
@@ -160,17 +174,17 @@ func main() {
 		log.Printf("✅ 发送延时已启用: %d - %d 秒之间。", strategy.MinDelay, strategy.MaxDelay)
 	}
 
-	// --- 4. 加载收件人数据 ---
+	// --- 5. 加载收件人数据 ---
 	recipientsData := loadRecipients(*recipientsFile, *recipientsStr)
 	if len(recipientsData) == 0 {
 		log.Fatal("❌ 错误: 必须提供至少一个收件人。使用 -recipients 或 -recipients-file 指定。")
 	}
 	log.Printf("✅ 成功加载 %d 位收件人的数据。", len(recipientsData))
 
-	// --- 5. 为每个收件人构建最终提示词 ---
+	// --- 6. 为每个收件人构建最终提示词 ---
 	finalPrompts := buildFinalPrompts(recipientsData, *prompt, *promptName, *instructionNames, cfg.AI)
 
-	// --- 6. 初始化 AI 并生成邮件变体 ---
+	// --- 7. 初始化 AI 并生成邮件变体 ---
 	count := len(recipientsData)
 	provider, err := llm.NewProvider(cfg.AI)
 	if err != nil {
@@ -189,14 +203,19 @@ func main() {
 	if len(variations) < count {
 		log.Printf("⚠️ 警告: AI 生成的文案数量 (%d) 少于收件人数量 (%d)，部分收件人将收到重复内容。", len(variations), count)
 		// 循环使用已生成的变体来填充不足的部分
-		for i := len(variations); i < count; i++ {
-			variations = append(variations, variations[i%len(variations)])
+		if len(variations) > 0 {
+			for i := len(variations); i < count; i++ {
+				variations = append(variations, variations[i%len(variations)])
+			}
+		} else {
+			log.Fatal("❌ AI 未能生成任何内容，无法继续发送。")
 		}
+
 	} else {
 		log.Printf("✅ AI 已成功生成 %d 份不同文案。", len(variations))
 	}
 
-	// --- 7. 验证模板并并发发送 ---
+	// --- 8. 验证模板并并发发送 ---
 	templatePath, ok := cfg.App.Templates[*templateName]
 	if !ok {
 		log.Fatalf("❌ 错误：找不到名为 '%s' 的模板。", *templateName)
@@ -280,7 +299,7 @@ func main() {
 	wg.Wait()
 	close(logChan) // 所有协程完成，关闭通道
 
-	// --- 8. 收集日志并生成报告 ---
+	// --- 9. 收集日志并生成报告 ---
 	var logEntries []logger.LogEntry
 	for entry := range logChan {
 		logEntries = append(logEntries, entry)

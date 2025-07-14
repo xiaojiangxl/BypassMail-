@@ -11,8 +11,8 @@ providers:
     api_key: "YOUR_DOUBAO_API_KEY"
     secret_key: "YOUR_DOUBAO_SECRET_KEY"
   deepseek:
-    api_key: "sk-881bb59a82cb49a8a7bd4c6xxxxxxxxxxx"
-    model: "deep-seek"
+    api_key: "YOUR_DEEPSEEK_API_KEY"
+    model: "deepseek-chat"
 
 # 预设的邮件生成基础提示词
 prompts:
@@ -26,7 +26,7 @@ structured_instructions:
   format_json_array: "严格以 JSON 数组格式返回结果，数组的每个元素都是一份邮件正文的字符串。不要添加任何额外的解释或文本。"
   add_call_to_action: "在邮件末尾，加入明确的号召性用语（Call to Action），鼓励用户点击链接或回复邮件。"
 
-# (优化第2点) 将 DeepSeek 的生成模板移到此处
+# 将 DeepSeek 的生成模板移到此处
 generation_template: >-
   基于以下核心思想，为我生成 %d 份措辞不同但主题思想完全相同的专业邮件正文。
   核心思想: "%s"

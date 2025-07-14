@@ -3,23 +3,24 @@
 
 # 邮件发送策略
 sending_strategies:
+  # 默认策略，使用名为 'gmail_example' 的账户，以轮询方式
   default:
-    policy: "round-robin"
+    policy: "round-robin" # 策略类型: round-robin (轮询), random (随机)
     accounts:
-      - "gmail_personal"
-  round_robin_gmail:
-    policy: "round-robin"
-    accounts:
-      - "gmail_personal"
-      - "gmail_work"
+      - "gmail_example"   # 对应 email.yaml 中定义的账户名
+    min_delay: 5          # 最小发送延迟（秒）
+    max_delay: 15         # 最大发送延迟（秒）
+  
+  # 随机使用所有账户的策略示例
   random_all:
     policy: "random"
     accounts:
-      - "gmail_personal"
-      - "gmail_work"
-      - "office365_main"
+      - "gmail_example"
+      - "office365_example"
+    min_delay: 10
+    max_delay: 30
 
-# 邮件模板配置
+# 邮件模板配置 (路径相对于程序运行的根目录)
 templates:
   default: "templates/default_template.html"
   formal: "templates/formal_template.html"
