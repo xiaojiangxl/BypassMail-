@@ -1,0 +1,87 @@
+# 工作流名称
+name: Release Go Binaries
+
+# 触发条件：当一个以 'v' 开头的标签被推送到仓库时
+on:
+  push:
+    tags:
+      - 'v*'
+
+# 任务（Jobs）
+jobs:
+  # 编译任务
+  build:
+    # 任务名称
+    name: Build Go Binaries
+    # 运行此任务的虚拟机环境
+    runs-on: ubuntu-latest
+    # 构建矩阵，用于交叉编译
+    strategy:
+      matrix:
+        # 定义不同的目标平台
+        goos: [linux, windows, darwin] # darwin 是 macOS 的内部名称
+        goarch: [amd64]
+
+    # 任务步骤
+    steps:
+      # 步骤1：检出您的代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 步骤2：设置 Go 环境
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.18' # 您可以根据需要更改 Go 版本
+
+      # 步骤3：交叉编译
+      - name: Build
+        # 定义环境变量 GOOS 和 GOARCH 以进行交叉编译
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        # 执行编译命令
+        # -o 指定输出路径和文件名
+        # -v 打印编译的包名
+        # -ldflags "-s -w" 用于减小二进制文件体积
+        run: go build -v -o build/bypass-mail-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/bypass-mail/
+
+      # 步骤4：为 Windows 的二进制文件添加 .exe 后缀
+      - name: Add .exe to windows binary
+        if: matrix.goos == 'windows'
+        run: mv build/bypass-mail-windows-amd64 build/bypass-mail-windows-amd64.exe
+      
+      # 步骤5：将编译好的二进制文件作为产物上传，以便发布任务使用
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # 产物名称
+          name: bypass-mail-${{ matrix.goos }}-${{ matrix.goarch }}
+          # 要上传的文件路径
+          path: build/*
+          # 保留天数
+          retention-days: 1
+
+  # 发布任务
+  release:
+    # 任务名称
+    name: Create GitHub Release
+    # 此任务依赖于 'build' 任务，必须在 build 成功后才运行
+    needs: build
+    # 运行此任务的虚拟机环境
+    runs-on: ubuntu-latest
+    # 任务步骤
+    steps:
+      # 步骤1：下载所有由 build 任务上传的产物
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          # 下载到 release-artifacts 目录
+          path: release-artifacts
+
+      # 步骤2：创建 GitHub Release 并上传二进制文件
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          # 要上传的文件，使用通配符匹配所有下载的二进制文件
+          files: release-artifacts/**/*
