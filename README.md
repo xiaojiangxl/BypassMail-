@@ -31,22 +31,46 @@
 * **垃圾邮件过滤机制研究**: 深入探究不同邮件服务商（如 Gmail, Office 365）的垃圾邮件过滤算法和检测逻辑。
 
 ## 快速上手
+### 命令行参数
 
-#### 1. 配置
+以下是 `bypass-mail` 支持的所有命令行参数，定义于 `cmd/bypass-mail/main.go` 中：
+
+| 参数 | 说明 | 默认值 |
+| --- | --- | --- |
+| `-version` | 显示工具的版本号并退出。 | `false` |
+| `-subject` | 邮件主题 (可被 CSV 中的 `subject` 列覆盖)。 | `""` |
+| `-prompt` | 自定义邮件核心思想 (与 `-prompt-name` 二选一)。 | `""` |
+| `-prompt-name` | 使用 `ai.yaml` 中预设的提示词名称 (与 `-prompt` 二选一)。 | `""` |
+| `-instructions` | 要组合的结构化指令名称, 逗号分隔 (来自 `ai.yaml`)。 | `format_json_array` |
+| `-recipients` | 收件人列表, 逗号分隔 (例如: `a@b.com,c@d.com`)。 | `""` |
+| `-recipients-file` | 从文本或 CSV 文件读取收件人及个人化数据。 | `""` |
+| `-template` | 邮件模板名称 (来自 `config.yaml`)。 | `default` |
+| `-title` | 默认邮件内页标题 (若 CSV 未提供)。 | `""` |
+| `-name` | 默认收件人称呼 (若 CSV 未提供)。 | `""` |
+| `-url` | 默认附加链接 (若 CSV 未提供)。 | `""` |
+| `-file` | 默认附加文件路径 (若 CSV 未提供)。 | `""` |
+| `-img` | 默认邮件头图路径 (本地文件, 若 CSV 未提供)。 | `""` |
+| `-strategy` | 指定使用的发件策略 (来自 `config.yaml`)。 | `default` |
+| `-config` | 主策略配置文件路径。 | `configs/config.yaml` |
+| `-ai-config` | AI 配置文件路径。 | `configs/ai.yaml` |
+| `-email-config` | Email 配置文件路径。 | `configs/email.yaml` |
+| `-test-accounts` | 仅测试发件策略中的账户是否可用，不发送邮件。 | `false` |
+
+### 1. 配置
 
 1.  **`configs/ai.yaml`**: 配置您选择的 AI 模型的提供商和 API Key。
 2.  **`configs/email.yaml`**: 配置所有用于发送邮件的 SMTP 账户信息，包括密码和别名。
 3.  **`configs/config.yaml`**: 定义发送策略，将不同的 SMTP 账户组合起来，并设置发送延迟。
 
-#### 2. 账号存活测试
+### 2. 账号存活测试
 
 在进行大规模发送前，先验证您的发件箱凭据是否有效。此模式不会发送任何邮件。
 ```bash
 go run ./cmd/bypass-mail/ -test-accounts -strategy="round_robin_gmail"
 ```
 
-#### 3.执行发送任务
-##### 示例1：批量发送
+### 3.执行发送任务
+#### 示例1：批量发送
 
 此命令将从 `recipients.csv` 读取收件人列表，使用 `weekly_report` 作为 AI 的核心思想，采用 `round_robin_gmail` 策略进行发送。
 
@@ -58,7 +82,7 @@ go run ./cmd/bypass-mail/ \
     -strategy="round_robin_gmail"
 ```
 
-##### 示例2：单次精准发送
+#### 示例2：单次精准发送
 此命令向单个目标发送一封邮件，内容由 `-prompt` 参数临时指定。
 
 ```bash
