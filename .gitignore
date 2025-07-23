@@ -2,3 +2,5 @@
 /test/*
 BypassMail-Rep*
 *.exe
+deep*
+/templates/yingxiao.html

@@ -1,0 +1,4 @@
+email,name,title,url,file,img,customPrompt
+user1@example.com,张三,关于第一季度的项目回顾,http://example.com/project-review,report.pdf,banner.png,请用正式的口吻总结我们本季度的成就和下季度的规划。
+user2@example.com,Lisa,A Special Offer Just For You!,http://example.com/special-offer,,email-header.jpg,Please introduce our new product feature and provide a limited-time discount code.
+user3@testing.com,王五,,,,Please write a brief server maintenance notification.
