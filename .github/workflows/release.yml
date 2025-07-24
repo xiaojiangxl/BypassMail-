@@ -94,21 +94,33 @@ jobs:
           path: ${{ env.ARCHIVE_FILE }}
           retention-days: 1
 
-  # 发布任务 (此任务基本保持不变)
+  # 发布任务
   release:
+    # 任务名称
     name: Create GitHub Release
+    # 此任务依赖于 'build_and_package' 任务
     needs: build_and_package
+    # 运行此任务的虚拟机环境
     runs-on: ubuntu-latest
+
+    # 明确为此任务授予创建 Release 所需的权限
     permissions:
       contents: write
+
+    # 任务步骤
     steps:
+      # 步骤1：下载所有由 build 任务上传的产物
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
+          # 下载到 release-artifacts 目录
           path: release-artifacts
 
+      # 步骤2：创建 GitHub Release 并上传二进制文件
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
-          # 上传所有下载的压缩包
+          # ✨ 新增：自动生成本次发布的所有更新说明
+          generate_release_notes: true
+          # 要上传的文件，使用通配符匹配所有下载的二进制文件
           files: release-artifacts/**/*/*
