@@ -23,6 +23,11 @@ var (
 	version = "dev" // 預設值為 'dev'，可以透過 ldflags 在編譯時覆寫
 )
 
+const (
+	// 定义批处理大小
+	batchSize = 50
+)
+
 // RecipientData 用于存储从 CSV 或其他来源读取的每一行个人化数据
 type RecipientData struct {
 	Email        string
@@ -159,141 +164,158 @@ func main() {
 	}
 
 	// --- 5. 加载收件人 ---
-	recipientsData := loadRecipients(*recipientsFile, *recipientsStr)
-	if len(recipientsData) == 0 {
+	allRecipientsData := loadRecipients(*recipientsFile, *recipientsStr)
+	if len(allRecipientsData) == 0 {
 		log.Fatal("❌ 错误: 必须提供至少一个收件人。使用 -recipients 或 -recipients-file 指定。")
 	}
-	log.Printf("✅ 成功加载 %d 位收件人的数据。", len(recipientsData))
+	log.Printf("✅ 成功加载 %d 位收件人的数据。", len(allRecipientsData))
 
-	// --- 6. 构建提示词 ---
-	finalPrompts := buildFinalPrompts(recipientsData, *prompt, *promptName, *instructionNames, cfg.AI)
-
-	// --- 7. 初始化 AI 并生成内容 ---
-	count := len(recipientsData)
+	// --- 6. 初始化 AI ---
 	provider, err := llm.NewProvider(cfg.AI)
 	if err != nil {
 		log.Fatalf("❌ 初始化AI提供商失败: %v", err)
 	}
 
-	log.Printf("🤖 正在调用 %s 为 %d 位收件人生成定制化邮件文案...", cfg.AI.ActiveProvider, count)
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
-	defer cancel()
-
-	combinedPromptForGeneration := strings.Join(finalPrompts, "\n---\n")
-	variations, err := provider.GenerateVariations(ctx, combinedPromptForGeneration, count)
-	if err != nil {
-		log.Fatalf("❌ AI 生成内容失败: %v", err)
-	}
-	if len(variations) < count {
-		log.Printf("⚠️ 警告: AI 生成的文案数量 (%d) 少于收件人数量 (%d)，部分收件人将收到重复内容。", len(variations), count)
-		if len(variations) > 0 {
-			for i := len(variations); i < count; i++ {
-				variations = append(variations, variations[i%len(variations)])
-			}
-		} else {
-			log.Fatal("❌ AI 未能生成任何内容，无法继续发送。")
-		}
-	} else {
-		log.Printf("✅ AI 已成功生成 %d 份不同文案。", len(variations))
-	}
-
-	// --- 8. 并发发送邮件 ---
+	// --- 7. 按批次处理邮件 ---
 	templatePath, ok := cfg.App.Templates[*templateName]
 	if !ok {
 		log.Fatalf("❌ 错误：找不到名为 '%s' 的模板。", *templateName)
 	}
 
+	totalRecipients := len(allRecipientsData)
+	logChan := make(chan logger.LogEntry, totalRecipients)
 	var wg sync.WaitGroup
-	logChan := make(chan logger.LogEntry, len(recipientsData))
 
-	for i, data := range recipientsData {
-		wg.Add(1)
-		go func(recipientIndex int, recipient RecipientData) {
-			defer wg.Done()
+	for i := 0; i < totalRecipients; i += batchSize {
+		end := i + batchSize
+		if end > totalRecipients {
+			end = totalRecipients
+		}
+		batchRecipients := allRecipientsData[i:end]
+		batchNumber := (i / batchSize) + 1
+		totalBatches := (totalRecipients + batchSize - 1) / batchSize
 
-			if strategy.MaxDelay > 0 {
-				delay := rand.Intn(strategy.MaxDelay-strategy.MinDelay+1) + strategy.MinDelay
-				log.Printf("  ...等待 %d 秒后发送给 %s...", delay, recipient.Email)
-				time.Sleep(time.Duration(delay) * time.Second)
-			}
+		log.Printf("--- 正在处理第 %d / %d 批次 (共 %d 位收件人) ---", batchNumber, totalBatches, len(batchRecipients))
 
-			logEntry := logger.LogEntry{
-				Timestamp: time.Now().Format("2006-01-02 15:04:05"),
-				Recipient: recipient.Email,
-			}
+		// --- 7.1 为当前批次构建提示词 ---
+		finalPrompts := buildFinalPrompts(batchRecipients, *prompt, *promptName, *instructionNames, cfg.AI)
 
-			accountName := selectAccount(strategy, recipientIndex)
-			smtpCfg, ok := cfg.Email.SMTPAccounts[accountName]
-			if !ok {
-				errMsg := fmt.Sprintf("在策略 '%s' 中定义的账户 '%s' 找不到配置。", *strategyName, accountName)
-				log.Printf("❌ 错误: %s", errMsg)
-				logEntry.Status = "Failed"
-				logEntry.Error = errMsg
-				logChan <- logEntry
-				return
-			}
-			sender := email.NewSender(smtpCfg)
-			logEntry.Sender = smtpCfg.Username
+		// --- 7.2 为当前批次生成内容 ---
+		count := len(batchRecipients)
+		log.Printf("🤖 正在调用 %s 为 %d 位收件人生成定制化邮件文案...", cfg.AI.ActiveProvider, count)
+		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+		defer cancel()
 
-			addr := strings.TrimSpace(recipient.Email)
-			content := variations[recipientIndex]
-
-			// **图片处理新逻辑**
-			var embeddedImgSrc string
-			imgPath := coalesce(recipient.Img, *defaultImg)
-			if imgPath != "" {
-				var err error
-				embeddedImgSrc, err = email.EmbedImageAsBase64(imgPath)
-				if err != nil {
-					log.Printf("⚠️ 警告: 无法处理图片 '%s'，将忽略此图片: %v", imgPath, err)
-				} else {
-					log.Printf("  🖼️ 已成功将图片 '%s' 嵌入邮件。", imgPath)
+		combinedPromptForGeneration := strings.Join(finalPrompts, "\n---\n")
+		variations, err := provider.GenerateVariations(ctx, combinedPromptForGeneration, count)
+		if err != nil {
+			log.Fatalf("❌ 批次 %d 的 AI 生成内容失败: %v", batchNumber, err)
+		}
+		if len(variations) < count {
+			log.Printf("⚠️ 警告: AI 生成的文案数量 (%d) 少于当前批次的收件人数量 (%d)，部分收件人将收到重复内容。", len(variations), count)
+			if len(variations) > 0 {
+				for j := len(variations); j < count; j++ {
+					variations = append(variations, variations[j%len(variations)])
 				}
-			}
-
-			templateData := &email.TemplateData{
-				Content:   content,
-				Title:     coalesce(recipient.Title, *defaultTitle, *subject),
-				Name:      coalesce(recipient.Name, *defaultName),
-				URL:       coalesce(recipient.URL, *defaultURL),
-				File:      coalesce(recipient.File, *defaultFile),
-				Img:       embeddedImgSrc, // 使用处理后的 Base64 字符串
-				Date:      recipient.Date,
-				Sender:    smtpCfg.Username,
-				Recipient: recipient.Email,
-			}
-			finalSubject := coalesce(recipient.Title, *subject)
-			logEntry.Subject = finalSubject
-
-			attachmentPath := coalesce(recipient.File, *defaultFile)
-
-			htmlBody, err := email.ParseTemplate(templatePath, templateData)
-			if err != nil {
-				log.Printf("❌ 为 %s 解析邮件模板失败: %v", addr, err)
-				logEntry.Status = "Failed"
-				logEntry.Error = fmt.Sprintf("解析模板失败: %v", err)
-				logChan <- logEntry
-				return
-			}
-			logEntry.Content = htmlBody
-
-			log.Printf("  -> [使用 %s] 正在发送给 %s...", smtpCfg.Username, addr)
-			if err := sender.Send(finalSubject, htmlBody, addr, attachmentPath); err != nil {
-				log.Printf("  ❌ 发送给 %s 失败: %v", addr, err)
-				logEntry.Status = "Failed"
-				logEntry.Error = err.Error()
 			} else {
-				log.Printf("  ✔️ 成功发送给 %s", addr)
-				logEntry.Status = "Success"
+				log.Fatalf("❌ AI 未能为批次 %d 生成任何内容，无法继续发送。", batchNumber)
 			}
-			logChan <- logEntry
-		}(i, data)
+		} else {
+			log.Printf("✅ AI 已成功为批次 %d 生成 %d 份不同文案。", batchNumber, len(variations))
+		}
+
+		// --- 7.3 并发发送当前批次的邮件 ---
+		for j, data := range batchRecipients {
+			wg.Add(1)
+			go func(recipientIndex int, recipient RecipientData, variationContent string) {
+				defer wg.Done()
+
+				if strategy.MaxDelay > 0 {
+					delay := rand.Intn(strategy.MaxDelay-strategy.MinDelay+1) + strategy.MinDelay
+					log.Printf("  ...等待 %d 秒后发送给 %s...", delay, recipient.Email)
+					time.Sleep(time.Duration(delay) * time.Second)
+				}
+
+				logEntry := logger.LogEntry{
+					Timestamp: time.Now().Format("2006-01-02 15:04:05"),
+					Recipient: recipient.Email,
+				}
+
+				// 使用全局索引 i + recipientIndex 来决定发件账户
+				accountName := selectAccount(strategy, i+recipientIndex)
+				smtpCfg, ok := cfg.Email.SMTPAccounts[accountName]
+				if !ok {
+					errMsg := fmt.Sprintf("在策略 '%s' 中定义的账户 '%s' 找不到配置。", *strategyName, accountName)
+					log.Printf("❌ 错误: %s", errMsg)
+					logEntry.Status = "Failed"
+					logEntry.Error = errMsg
+					logChan <- logEntry
+					return
+				}
+				sender := email.NewSender(smtpCfg)
+				logEntry.Sender = smtpCfg.Username
+
+				addr := strings.TrimSpace(recipient.Email)
+
+				// **图片处理新逻辑**
+				var embeddedImgSrc string
+				imgPath := coalesce(recipient.Img, *defaultImg)
+				if imgPath != "" {
+					var err error
+					embeddedImgSrc, err = email.EmbedImageAsBase64(imgPath)
+					if err != nil {
+						log.Printf("⚠️ 警告: 无法处理图片 '%s'，将忽略此图片: %v", imgPath, err)
+					} else {
+						log.Printf("  🖼️ 已成功将图片 '%s' 嵌入邮件。", imgPath)
+					}
+				}
+
+				templateData := &email.TemplateData{
+					Content:   variationContent,
+					Title:     coalesce(recipient.Title, *defaultTitle, *subject),
+					Name:      coalesce(recipient.Name, *defaultName),
+					URL:       coalesce(recipient.URL, *defaultURL),
+					File:      coalesce(recipient.File, *defaultFile),
+					Img:       embeddedImgSrc, // 使用处理后的 Base64 字符串
+					Date:      recipient.Date,
+					Sender:    smtpCfg.Username,
+					Recipient: recipient.Email,
+				}
+				finalSubject := coalesce(recipient.Title, *subject)
+				logEntry.Subject = finalSubject
+
+				attachmentPath := coalesce(recipient.File, *defaultFile)
+
+				htmlBody, err := email.ParseTemplate(templatePath, templateData)
+				if err != nil {
+					log.Printf("❌ 为 %s 解析邮件模板失败: %v", addr, err)
+					logEntry.Status = "Failed"
+					logEntry.Error = fmt.Sprintf("解析模板失败: %v", err)
+					logChan <- logEntry
+					return
+				}
+				logEntry.Content = htmlBody
+
+				log.Printf("  -> [使用 %s] 正在发送给 %s...", smtpCfg.Username, addr)
+				if err := sender.Send(finalSubject, htmlBody, addr, attachmentPath); err != nil {
+					log.Printf("  ❌ 发送给 %s 失败: %v", addr, err)
+					logEntry.Status = "Failed"
+					logEntry.Error = err.Error()
+				} else {
+					log.Printf("  ✔️ 成功发送给 %s", addr)
+					logEntry.Status = "Success"
+				}
+				logChan <- logEntry
+			}(j, data, variations[j])
+		}
+		// 等待当前批次的所有邮件发送完成
+		wg.Wait()
+		log.Printf("--- 第 %d / %d 批次处理完成 ---", batchNumber, totalBatches)
 	}
 
-	wg.Wait()
 	close(logChan)
 
-	// --- 9. 生成报告 ---
+	// --- 8. 生成报告 ---
 	var logEntries []logger.LogEntry
 	for entry := range logChan {
 		logEntries = append(logEntries, entry)
