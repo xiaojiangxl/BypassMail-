@@ -115,19 +115,6 @@ func (s *Sender) Send(subject, htmlBody string, to string, attachmentPath string
 	serverAddr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 	auth := smtp.PlainAuth("", s.cfg.Username, s.cfg.Password, s.cfg.Host)
 
-	var msg []byte
-	var err error
-
-	if attachmentPath != "" {
-		fmt.Printf("  📎 发现附件，构建MIME邮件: %s\n", attachmentPath)
-		msg, err = s.buildMIMEMessage(subject, htmlBody, to, attachmentPath)
-		if err != nil {
-			return err
-		}
-	} else {
-		msg = s.buildPlainMessage(subject, htmlBody, to)
-	}
-
 	// 1. 建立 TCP 连接
 	c, err := smtp.Dial(serverAddr)
 	if err != nil {
@@ -154,6 +141,22 @@ func (s *Sender) Send(subject, htmlBody string, to string, attachmentPath string
 	// 4. 在加密连接上进行认证
 	if err = c.Auth(auth); err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
+	}
+
+	// 如果 'to' 为空，则认为这是一个测试连接的请求，认证成功后直接退出
+	if to == "" {
+		return c.Quit()
+	}
+
+	var msg []byte
+	if attachmentPath != "" {
+		fmt.Printf("  📎 发现附件，构建MIME邮件: %s\n", attachmentPath)
+		msg, err = s.buildMIMEMessage(subject, htmlBody, to, attachmentPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		msg = s.buildPlainMessage(subject, htmlBody, to)
 	}
 
 	// 5. 在同一个连接上发送邮件数据

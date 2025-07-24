@@ -61,16 +61,10 @@ func testAccounts(cfg *config.Config, strategyName string) {
 				return
 			}
 			sender := email.NewSender(smtpCfg)
-			// 在测试模式下，我们传递一个空的附件路径
+			// 在测试模式下，我们传递一个空的收件人地址。
+			// sender.Send 函数会处理这种情况，只进行连接和认证测试。
 			if err := sender.Send("", "", "", ""); err != nil {
-				if strings.Contains(strings.ToLower(err.Error()), "authentication failed") ||
-					strings.Contains(strings.ToLower(err.Error()), "username and password not accepted") ||
-					strings.Contains(err.Error(), "connection refused") ||
-					strings.Contains(err.Error(), "timeout") {
-					results <- fmt.Sprintf("  - [ %-20s ] ❌ 失败: %v", smtpCfg.Username, err)
-				} else {
-					results <- fmt.Sprintf("  - [ %-20s ] ✔️ 成功", smtpCfg.Username)
-				}
+				results <- fmt.Sprintf("  - [ %-20s ] ❌ 失败: %v", smtpCfg.Username, err)
 			} else {
 				results <- fmt.Sprintf("  - [ %-20s ] ✔️ 成功", smtpCfg.Username)
 			}
