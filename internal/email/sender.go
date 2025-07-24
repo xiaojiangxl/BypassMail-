@@ -110,35 +110,55 @@ func (s *Sender) buildMIMEMessage(subject, htmlBody, to, attachmentPath string) 
 	return finalBuf.Bytes(), nil
 }
 
-// Send 函数现在支持附件
+// Send 函数现在支持附件，并能自动处理 STARTTLS 和 SMTPS(SSL/TLS)
 func (s *Sender) Send(subject, htmlBody string, to string, attachmentPath string) error {
 	serverAddr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 	auth := smtp.PlainAuth("", s.cfg.Username, s.cfg.Password, s.cfg.Host)
 
-	// 1. 建立 TCP 连接
-	c, err := smtp.Dial(serverAddr)
-	if err != nil {
-		return fmt.Errorf("failed to dial SMTP server: %w", err)
+	var c *smtp.Client
+	var err error
+
+	// 根据端口号选择连接方式
+	if s.cfg.Port == 465 {
+		// SMTPS: 直接使用 TLS 连接
+		tlsconfig := &tls.Config{
+			InsecureSkipVerify: true, // 保持与原逻辑一致
+			ServerName:         s.cfg.Host,
+		}
+		conn, errDial := tls.Dial("tcp", serverAddr, tlsconfig)
+		if errDial != nil {
+			return fmt.Errorf("failed to dial TLS for SMTPS: %w", errDial)
+		}
+		c, err = smtp.NewClient(conn, s.cfg.Host)
+		if err != nil {
+			return fmt.Errorf("failed to create SMTP client for SMTPS: %w", err)
+		}
+	} else {
+		// STARTTLS: 建立普通连接，然后升级到 TLS
+		c, err = smtp.Dial(serverAddr)
+		if err != nil {
+			return fmt.Errorf("failed to dial SMTP server for STARTTLS: %w", err)
+		}
 	}
 	defer c.Close()
 
-	// 2. 发送 HELO/EHLO
-	if err = c.Hello("localhost"); err != nil {
-		return fmt.Errorf("failed to send HELO/EHLO: %w", err)
+	// 如果是STARTTLS方式，需要在认证前完成协议握手
+	if s.cfg.Port != 465 {
+		if err = c.Hello("localhost"); err != nil {
+			return fmt.Errorf("failed to send HELO/EHLO: %w", err)
+		}
+		if ok, _ := c.Extension("STARTTLS"); ok {
+			tlsconfig := &tls.Config{
+				InsecureSkipVerify: true, // 保持与原逻辑一致
+				ServerName:         s.cfg.Host,
+			}
+			if err = c.StartTLS(tlsconfig); err != nil {
+				return fmt.Errorf("failed to start TLS handshake: %w", err)
+			}
+		}
 	}
 
-	// 3. 检查并启动 STARTTLS
-	if ok, _ := c.Extension("STARTTLS"); ok {
-		tlsConfig := &tls.Config{
-			ServerName:         s.cfg.Host,
-			InsecureSkipVerify: true, // 关键：跳过证书验证
-		}
-		if err = c.StartTLS(tlsConfig); err != nil {
-			return fmt.Errorf("failed to start TLS handshake: %w", err)
-		}
-	}
-
-	// 4. 在加密连接上进行认证
+	// 在已建立的连接上进行认证
 	if err = c.Auth(auth); err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
@@ -148,6 +168,7 @@ func (s *Sender) Send(subject, htmlBody string, to string, attachmentPath string
 		return c.Quit()
 	}
 
+	// 构建邮件消息体
 	var msg []byte
 	if attachmentPath != "" {
 		fmt.Printf("  📎 发现附件，构建MIME邮件: %s\n", attachmentPath)
@@ -159,7 +180,7 @@ func (s *Sender) Send(subject, htmlBody string, to string, attachmentPath string
 		msg = s.buildPlainMessage(subject, htmlBody, to)
 	}
 
-	// 5. 在同一个连接上发送邮件数据
+	// 在同一个连接上发送邮件数据
 	return sendData(c, s.cfg.Username, to, msg)
 }
 
