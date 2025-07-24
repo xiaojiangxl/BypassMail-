@@ -94,11 +94,11 @@ func main() {
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "BypassMail: AI 驱动的个性化邮件批量发送工具。\n\n")
-		fmt.Fprintf(os.Stderr, "使用方法:\n  go run ./cmd/bypass-mail/ [flags]\n\n")
+		fmt.Fprintf(os.Stderr, "使用方法:\n  bypass-mail [flags]\n\n")
 		fmt.Fprintf(os.Stderr, "示例 (批量发送):\n")
-		fmt.Fprintf(os.Stderr, "  go run ./cmd/bypass-mail/ -subject=\"季度更新\" -recipients-file=\"path/to/list.csv\" -prompt-name=\"weekly_report\" -strategy=\"round_robin_gmail\"\n\n")
+		fmt.Fprintf(os.Stderr, "  bypass-mail -subject=\"季度更新\" -recipients-file=\"path/to/list.csv\" -prompt-name=\"weekly_report\" -strategy=\"round_robin_gmail\"\n\n")
 		fmt.Fprintf(os.Stderr, "示例 (测试账号):\n")
-		fmt.Fprintf(os.Stderr, "  go run ./cmd/bypass-mail/ -test-accounts -strategy=\"default\"\n\n")
+		fmt.Fprintf(os.Stderr, "  bypass-mail -test-accounts -strategy=\"default\"\n\n")
 		fmt.Fprintf(os.Stderr, "可用参数:\n")
 		flag.PrintDefaults()
 	}
