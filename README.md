@@ -66,7 +66,7 @@
 
 在进行大规模发送前，先验证您的发件箱凭据是否有效。此模式不会发送任何邮件。
 ```bash
-go run ./cmd/bypass-mail/ -test-accounts -strategy="round_robin_gmail"
+bypass-mail -test-accounts -strategy="round_robin_gmail"
 ```
 
 ### 3.执行发送任务
@@ -75,7 +75,7 @@ go run ./cmd/bypass-mail/ -test-accounts -strategy="round_robin_gmail"
 此命令将从 `recipients.csv` 读取收件人列表，使用 `weekly_report` 作为 AI 的核心思想，采用 `round_robin_gmail` 策略进行发送。
 
 ```bash
-go run ./cmd/bypass-mail/ \
+bypass-mail \
     -subject="项目季度回顾与展望" \
     -recipients-file="recipients.csv" \
     -prompt-name="weekly_report" \
@@ -86,7 +86,7 @@ go run ./cmd/bypass-mail/ \
 此命令向单个目标发送一封邮件，内容由 `-prompt` 参数临时指定。
 
 ```bash
-go run ./cmd/bypass-mail/ \
+bypass-mail \
     -subject="一个临时的紧急通知" \
     -recipients="boss@company.com" \
     -prompt="今晚服务器需要紧急维护，预计从晚上10点到11点服务不可用，请周知。" \
