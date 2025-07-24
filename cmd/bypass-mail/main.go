@@ -20,15 +20,15 @@ import (
 )
 
 var (
-	version = "dev" // 預設值為 'dev'，可以透過 ldflags 在編譯時覆寫
+	version = "dev" // Default value is 'dev', can be overwritten at compile time with ldflags
 )
 
 const (
-	// 定义批处理大小
+	// Define batch processing size
 	batchSize = 50
 )
 
-// RecipientData 用于存储从 CSV 或其他来源读取的每一行个人化数据
+// RecipientData is used to store each line of personalized data read from CSV or other sources
 type RecipientData struct {
 	Email        string
 	Title        string
@@ -40,14 +40,14 @@ type RecipientData struct {
 	CustomPrompt string
 }
 
-// testAccounts 函数用于测试发件箱账号的连通性
+// testAccounts function is used to test the connectivity of sender accounts
 func testAccounts(cfg *config.Config, strategyName string) {
 	strategy, ok := cfg.App.SendingStrategies[strategyName]
 	if !ok {
-		log.Fatalf("❌ 错误：找不到名为 '%s' 的发送策略。", strategyName)
+		log.Fatalf("❌ Error: Sending strategy '%s' not found.", strategyName)
 	}
 
-	log.Printf("🧪 开始测试策略 '%s' 中的 %d 个发件账户...", strategyName, len(strategy.Accounts))
+	log.Printf("🧪 Starting test for %d sender accounts in strategy '%s'...", len(strategy.Accounts), strategyName)
 	var wg sync.WaitGroup
 	results := make(chan string, len(strategy.Accounts))
 
@@ -57,16 +57,16 @@ func testAccounts(cfg *config.Config, strategyName string) {
 			defer wg.Done()
 			smtpCfg, ok := cfg.Email.SMTPAccounts[accName]
 			if !ok {
-				results <- fmt.Sprintf("  - [ %-20s ] ❌ 配置未找到", accName)
+				results <- fmt.Sprintf("  - [ %-20s ] ❌ Configuration not found", accName)
 				return
 			}
 			sender := email.NewSender(smtpCfg)
-			// 在测试模式下，我们传递一个空的收件人地址。
-			// sender.Send 函数会处理这种情况，只进行连接和认证测试。
+			// In test mode, we pass an empty recipient address.
+			// The sender.Send function will handle this and only perform connection and authentication tests.
 			if err := sender.Send("", "", "", ""); err != nil {
-				results <- fmt.Sprintf("  - [ %-20s ] ❌ 失败: %v", smtpCfg.Username, err)
+				results <- fmt.Sprintf("  - [ %-20s ] ❌ Failed: %v", smtpCfg.Username, err)
 			} else {
-				results <- fmt.Sprintf("  - [ %-20s ] ✔️ 成功", smtpCfg.Username)
+				results <- fmt.Sprintf("  - [ %-20s ] ✔️ Success", smtpCfg.Username)
 			}
 		}(accountName)
 	}
@@ -77,46 +77,46 @@ func testAccounts(cfg *config.Config, strategyName string) {
 	for res := range results {
 		log.Println(res)
 	}
-	log.Println("✅ 账号测试完成。")
+	log.Println("✅ Account test completed.")
 }
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	// --- 1. 命令行参数定义与文档 ---
-	showVersion := flag.Bool("version", false, "显示工具的版本号并退出")
+	// --- 1. Command-line argument definition and documentation ---
+	showVersion := flag.Bool("version", false, "Show the tool version and exit")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "BypassMail: AI 驱动的个性化邮件批量发送工具。\n\n")
-		fmt.Fprintf(os.Stderr, "使用方法:\n  bypass-mail [flags]\n\n")
-		fmt.Fprintf(os.Stderr, "示例 (批量发送):\n")
-		fmt.Fprintf(os.Stderr, "  bypass-mail -subject=\"季度更新\" -recipients-file=\"path/to/list.csv\" -prompt-name=\"weekly_report\" -strategy=\"round_robin_gmail\"\n\n")
-		fmt.Fprintf(os.Stderr, "示例 (测试账号):\n")
+		fmt.Fprintf(os.Stderr, "BypassMail: AI-driven personalized bulk email sending tool.\n\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n  bypass-mail [flags]\n\n")
+		fmt.Fprintf(os.Stderr, "Example (Bulk Send):\n")
+		fmt.Fprintf(os.Stderr, "  bypass-mail -subject=\"Quarterly Update\" -recipients-file=\"path/to/list.csv\" -prompt-name=\"weekly_report\" -strategy=\"round_robin_gmail\"\n\n")
+		fmt.Fprintf(os.Stderr, "Example (Test Accounts):\n")
 		fmt.Fprintf(os.Stderr, "  bypass-mail -test-accounts -strategy=\"default\"\n\n")
-		fmt.Fprintf(os.Stderr, "可用参数:\n")
+		fmt.Fprintf(os.Stderr, "Available Flags:\n")
 		flag.PrintDefaults()
 	}
 
-	subject := flag.String("subject", "", "邮件主题 (必需, 可被 CSV 中的 subject 列覆盖)")
-	prompt := flag.String("prompt", "", "自定义邮件核心思想 (与 -prompt-name 二选一)")
-	promptName := flag.String("prompt-name", "", "使用 ai.yaml 中预设的提示词名称 (与 -prompt 二选一)")
-	instructionNames := flag.String("instructions", "format_json_array", "要组合的结构化指令名称, 逗号分隔 (来自 ai.yaml)")
+	subject := flag.String("subject", "", "Email subject (required, can be overridden by 'subject' column in CSV)")
+	prompt := flag.String("prompt", "", "Custom core idea for the email (choose one: -prompt or -prompt-name)")
+	promptName := flag.String("prompt-name", "", "Use a preset prompt name from ai.yaml (choose one: -prompt or -prompt-name)")
+	instructionNames := flag.String("instructions", "format_json_array", "Comma-separated names of structured instructions to combine (from ai.yaml)")
 
-	recipientsStr := flag.String("recipients", "", "收件人列表, 逗号分隔 (例如: a@b.com,c@d.com)")
-	recipientsFile := flag.String("recipients-file", "", "从文本或 CSV 文件读取收件人及个人化数据")
+	recipientsStr := flag.String("recipients", "", "Comma-separated list of recipients (e.g., a@b.com,c@d.com)")
+	recipientsFile := flag.String("recipients-file", "", "Read recipients and personalized data from a text or CSV file")
 
-	templateName := flag.String("template", "default", "邮件模板名称 (来自 config.yaml)")
-	defaultTitle := flag.String("title", "", "默认邮件内页标题 (若 CSV 未提供)")
-	defaultName := flag.String("name", "", "默认收件人称呼 (若 CSV 未提供)")
-	defaultURL := flag.String("url", "", "默认附加链接 (若 CSV 未提供)")
-	defaultFile := flag.String("file", "", "默认附加文件路径 (若 CSV 未提供)")
-	defaultImg := flag.String("img", "", "默认邮件头图路径 (本地文件, 若 CSV 未提供)")
+	templateName := flag.String("template", "default", "Email template name (from config.yaml)")
+	defaultTitle := flag.String("title", "", "Default email inner page title (if not provided in CSV)")
+	defaultName := flag.String("name", "", "Default recipient name (if not provided in CSV)")
+	defaultURL := flag.String("url", "", "Default additional link (if not provided in CSV)")
+	defaultFile := flag.String("file", "", "Default attachment file path (if not provided in CSV)")
+	defaultImg := flag.String("img", "", "Default email header image path (local file, if not provided in CSV)")
 
-	strategyName := flag.String("strategy", "default", "指定使用的发件策略 (来自 config.yaml)")
-	configPath := flag.String("config", "configs/config.yaml", "主策略配置文件路径")
-	aiConfigPath := flag.String("ai-config", "configs/ai.yaml", "AI 配置文件路径")
-	emailConfigPath := flag.String("email-config", "configs/email.yaml", "Email 配置文件路径")
-	testAccountsFlag := flag.Bool("test-accounts", false, "仅测试发件策略中的账户是否可用，不发送邮件")
+	strategyName := flag.String("strategy", "default", "Specify the sending strategy to use (from config.yaml)")
+	configPath := flag.String("config", "configs/config.yaml", "Main strategy configuration file path")
+	aiConfigPath := flag.String("ai-config", "configs/ai.yaml", "AI configuration file path")
+	emailConfigPath := flag.String("email-config", "configs/email.yaml", "Email configuration file path")
+	testAccountsFlag := flag.Bool("test-accounts", false, "Only test if accounts in the sending strategy are available, without sending emails")
 
 	flag.Parse()
 
@@ -125,60 +125,67 @@ func main() {
 		os.Exit(0)
 	}
 
-	// --- 2. 检查并生成初始配置 ---
+	// --- 2. Check and generate initial configurations ---
 	created, err := config.GenerateInitialConfigs(*configPath, *aiConfigPath, *emailConfigPath)
 	if err != nil {
-		log.Fatalf("❌ 初始化配置失败: %v", err)
+		log.Fatalf("❌ Failed to initialize configurations: %v", err)
 	}
 	if created {
-		log.Println("✅ 默认配置文件已生成。请根据您的需求修改 'configs' 目录下的 .yaml 文件，特别是 API Keys 和 SMTP 账户信息，然后重新运行程序。")
+		log.Println("✅ Default configuration files have been generated. Please modify the .yaml files in the 'configs' directory with your details, especially API Keys and SMTP account information, then run the program again.")
 		os.Exit(0)
 	}
 
-	// --- 3. 加载配置 ---
+	// --- 3. Load configurations ---
 	cfg, err := config.Load(*configPath, *aiConfigPath, *emailConfigPath)
 	if err != nil {
-		log.Fatalf("❌ 加载配置失败: %v", err)
+		log.Fatalf("❌ Failed to load configurations: %v", err)
 	}
-	log.Println("✅ 所有配置加载成功")
+	log.Println("✅ All configurations loaded successfully")
 
 	if *testAccountsFlag {
 		testAccounts(cfg, *strategyName)
 		os.Exit(0)
 	}
 
-	// --- 4. 验证发送策略 ---
+	// --- 4. Validate sending strategy ---
 	strategy, ok := cfg.App.SendingStrategies[*strategyName]
 	if !ok {
-		log.Fatalf("❌ 错误：找不到名为 '%s' 的发送策略。", *strategyName)
+		log.Fatalf("❌ Error: Sending strategy '%s' not found.", *strategyName)
 	}
-	log.Printf("✅ 使用发件策略: '%s' (策略: %s, 包含 %d 个账号)", *strategyName, strategy.Policy, len(strategy.Accounts))
+	log.Printf("✅ Using sending strategy: '%s' (Policy: %s, %d accounts)", *strategyName, strategy.Policy, len(strategy.Accounts))
 	if strategy.MaxDelay > 0 {
-		log.Printf("✅ 发送延时已启用: %d - %d 秒之间。", strategy.MinDelay, strategy.MaxDelay)
+		log.Printf("✅ Sending delay enabled: between %d - %d seconds.", strategy.MinDelay, strategy.MaxDelay)
 	}
 
-	// --- 5. 加载收件人 ---
+	// --- 5. Load recipients ---
 	allRecipientsData := loadRecipients(*recipientsFile, *recipientsStr)
 	if len(allRecipientsData) == 0 {
-		log.Fatal("❌ 错误: 必须提供至少一个收件人。使用 -recipients 或 -recipients-file 指定。")
+		log.Fatal("❌ Error: At least one recipient must be provided. Use -recipients or -recipients-file.")
 	}
-	log.Printf("✅ 成功加载 %d 位收件人的数据。", len(allRecipientsData))
+	log.Printf("✅ Successfully loaded data for %d recipients.", len(allRecipientsData))
 
-	// --- 6. 初始化 AI ---
+	// --- 6. Initialize AI ---
 	provider, err := llm.NewProvider(cfg.AI)
 	if err != nil {
-		log.Fatalf("❌ 初始化AI提供商失败: %v", err)
+		log.Fatalf("❌ Failed to initialize AI provider: %v", err)
 	}
 
-	// --- 7. 按批次处理邮件 ---
+	// --- 7. Process emails in batches ---
 	templatePath, ok := cfg.App.Templates[*templateName]
 	if !ok {
-		log.Fatalf("❌ 错误：找不到名为 '%s' 的模板。", *templateName)
+		log.Fatalf("❌ Error: Template '%s' not found.", *templateName)
 	}
 
 	totalRecipients := len(allRecipientsData)
-	logChan := make(chan logger.LogEntry, totalRecipients)
+	logChan := make(chan logger.LogEntry, totalRecipients) // Buffer for all possible logs
 	var wg sync.WaitGroup
+
+	// ✨ Initialize report file name and the master log list outside the loop
+	reportFileName := fmt.Sprintf("BypassMail-Report-%s.html", time.Now().Format("20060102-150405"))
+	var allLogEntries []logger.LogEntry
+
+	// ✨ **FIXED**: Correct calculation of totalBatches
+	totalBatches := (totalRecipients + batchSize - 1) / batchSize
 
 	for i := 0; i < totalRecipients; i += batchSize {
 		end := i + batchSize
@@ -187,38 +194,38 @@ func main() {
 		}
 		batchRecipients := allRecipientsData[i:end]
 		batchNumber := (i / batchSize) + 1
-		totalBatches := (totalRecipients + batchSize - 1) / batchSize
 
-		log.Printf("--- 正在处理第 %d / %d 批次 (共 %d 位收件人) ---", batchNumber, totalBatches, len(batchRecipients))
+		log.Printf("--- Processing batch %d / %d (%d recipients) ---", batchNumber, totalBatches, len(batchRecipients))
 
-		// --- 7.1 为当前批次构建提示词 ---
+		// --- 7.1 Build prompts for the current batch ---
 		finalPrompts := buildFinalPrompts(batchRecipients, *prompt, *promptName, *instructionNames, cfg.AI)
 
-		// --- 7.2 为当前批次生成内容 ---
+		// --- 7.2 Generate content for the current batch ---
 		count := len(batchRecipients)
-		log.Printf("🤖 正在调用 %s 为 %d 位收件人生成定制化邮件文案...", cfg.AI.ActiveProvider, count)
+		log.Printf("🤖 Calling %s to generate custom content for %d recipients...", cfg.AI.ActiveProvider, count)
 		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
-		defer cancel()
 
 		combinedPromptForGeneration := strings.Join(finalPrompts, "\n---\n")
 		variations, err := provider.GenerateVariations(ctx, combinedPromptForGeneration, count)
+		cancel() // Defer is not needed here, cancel right after use
+
 		if err != nil {
-			log.Fatalf("❌ 批次 %d 的 AI 生成内容失败: %v", batchNumber, err)
+			log.Fatalf("❌ AI content generation failed for batch %d: %v", batchNumber, err)
 		}
 		if len(variations) < count {
-			log.Printf("⚠️ 警告: AI 生成的文案数量 (%d) 少于当前批次的收件人数量 (%d)，部分收件人将收到重复内容。", len(variations), count)
+			log.Printf("⚠️ Warning: AI generated %d variations, which is less than the %d recipients in this batch. Some content will be reused.", len(variations), count)
 			if len(variations) > 0 {
 				for j := len(variations); j < count; j++ {
 					variations = append(variations, variations[j%len(variations)])
 				}
 			} else {
-				log.Fatalf("❌ AI 未能为批次 %d 生成任何内容，无法继续发送。", batchNumber)
+				log.Fatalf("❌ AI failed to generate any content for batch %d. Cannot continue.", batchNumber)
 			}
 		} else {
-			log.Printf("✅ AI 已成功为批次 %d 生成 %d 份不同文案。", batchNumber, len(variations))
+			log.Printf("✅ AI successfully generated %d variations for batch %d.", len(variations), batchNumber)
 		}
 
-		// --- 7.3 并发发送当前批次的邮件 ---
+		// --- 7.3 Concurrently send emails for the current batch ---
 		for j, data := range batchRecipients {
 			wg.Add(1)
 			go func(recipientIndex int, recipient RecipientData, variationContent string) {
@@ -226,7 +233,7 @@ func main() {
 
 				if strategy.MaxDelay > 0 {
 					delay := rand.Intn(strategy.MaxDelay-strategy.MinDelay+1) + strategy.MinDelay
-					log.Printf("  ...等待 %d 秒后发送给 %s...", delay, recipient.Email)
+					log.Printf("  ...waiting %d seconds before sending to %s...", delay, recipient.Email)
 					time.Sleep(time.Duration(delay) * time.Second)
 				}
 
@@ -235,12 +242,12 @@ func main() {
 					Recipient: recipient.Email,
 				}
 
-				// 使用全局索引 i + recipientIndex 来决定发件账户
+				// Use global index i + recipientIndex to determine the sending account
 				accountName := selectAccount(strategy, i+recipientIndex)
 				smtpCfg, ok := cfg.Email.SMTPAccounts[accountName]
 				if !ok {
-					errMsg := fmt.Sprintf("在策略 '%s' 中定义的账户 '%s' 找不到配置。", *strategyName, accountName)
-					log.Printf("❌ 错误: %s", errMsg)
+					errMsg := fmt.Sprintf("Account '%s' defined in strategy '%s' not found in configurations.", accountName, *strategyName)
+					log.Printf("❌ Error: %s", errMsg)
 					logEntry.Status = "Failed"
 					logEntry.Error = errMsg
 					logChan <- logEntry
@@ -251,16 +258,16 @@ func main() {
 
 				addr := strings.TrimSpace(recipient.Email)
 
-				// **图片处理新逻辑**
+				// **Image processing logic**
 				var embeddedImgSrc string
 				imgPath := coalesce(recipient.Img, *defaultImg)
 				if imgPath != "" {
 					var err error
 					embeddedImgSrc, err = email.EmbedImageAsBase64(imgPath)
 					if err != nil {
-						log.Printf("⚠️ 警告: 无法处理图片 '%s'，将忽略此图片: %v", imgPath, err)
+						log.Printf("⚠️ Warning: Could not process image '%s', it will be skipped: %v", imgPath, err)
 					} else {
-						log.Printf("  🖼️ 已成功将图片 '%s' 嵌入邮件。", imgPath)
+						log.Printf("  🖼️ Successfully embedded image '%s' into email.", imgPath)
 					}
 				}
 
@@ -270,7 +277,7 @@ func main() {
 					Name:      coalesce(recipient.Name, *defaultName),
 					URL:       coalesce(recipient.URL, *defaultURL),
 					File:      coalesce(recipient.File, *defaultFile),
-					Img:       embeddedImgSrc, // 使用处理后的 Base64 字符串
+					Img:       embeddedImgSrc, // Use the processed Base64 string
 					Date:      recipient.Date,
 					Sender:    smtpCfg.Username,
 					Recipient: recipient.Email,
@@ -282,49 +289,51 @@ func main() {
 
 				htmlBody, err := email.ParseTemplate(templatePath, templateData)
 				if err != nil {
-					log.Printf("❌ 为 %s 解析邮件模板失败: %v", addr, err)
+					log.Printf("❌ Failed to parse email template for %s: %v", addr, err)
 					logEntry.Status = "Failed"
-					logEntry.Error = fmt.Sprintf("解析模板失败: %v", err)
+					logEntry.Error = fmt.Sprintf("Failed to parse template: %v", err)
 					logChan <- logEntry
 					return
 				}
 				logEntry.Content = htmlBody
 
-				log.Printf("  -> [使用 %s] 正在发送给 %s...", smtpCfg.Username, addr)
+				log.Printf("  -> [Using %s] Sending to %s...", smtpCfg.Username, addr)
 				if err := sender.Send(finalSubject, htmlBody, addr, attachmentPath); err != nil {
-					log.Printf("  ❌ 发送给 %s 失败: %v", addr, err)
+					log.Printf("  ❌ Failed to send to %s: %v", addr, err)
 					logEntry.Status = "Failed"
 					logEntry.Error = err.Error()
 				} else {
-					log.Printf("  ✔️ 成功发送给 %s", addr)
+					log.Printf("  ✔️ Successfully sent to %s", addr)
 					logEntry.Status = "Success"
 				}
 				logChan <- logEntry
 			}(j, data, variations[j])
 		}
-		// 等待当前批次的所有邮件发送完成
+		// Wait for all emails in the current batch to be sent
 		wg.Wait()
-		log.Printf("--- 第 %d / %d 批次处理完成 ---", batchNumber, totalBatches)
+
+		// ✨ **FIXED**: Collect logs from the channel and update the report
+		batchLogCount := len(batchRecipients)
+		for k := 0; k < batchLogCount; k++ {
+			entry := <-logChan
+			allLogEntries = append(allLogEntries, entry)
+		}
+
+		if err := logger.WriteHTMLReport(reportFileName, allLogEntries); err != nil {
+			log.Printf("❌ Failed to update HTML report: %v", err)
+		}
+
+		log.Printf("--- Batch %d / %d processed ---", batchNumber, totalBatches)
 	}
 
 	close(logChan)
 
-	// --- 8. 生成报告 ---
-	var logEntries []logger.LogEntry
-	for entry := range logChan {
-		logEntries = append(logEntries, entry)
-	}
-
-	if len(logEntries) > 0 {
-		if _, err := logger.GenerateHTMLReport(logEntries); err != nil {
-			log.Printf("❌ 生成 HTML 报告失败: %v", err)
-		}
-	}
-
-	log.Println("🎉 所有邮件任务已处理完毕!")
+	// --- 8. Generate Final Report ---
+	// The report is already generated/updated, this is just a final message.
+	log.Println("🎉 All email tasks have been processed!")
 }
 
-// loadRecipients 优先处理 CSV，然后是 TXT，最后是命令行字符串
+// loadRecipients first handles CSV, then TXT, and finally the command-line string
 func loadRecipients(filePath, recipientsStr string) []RecipientData {
 	if filePath != "" {
 		if strings.HasSuffix(strings.ToLower(filePath), ".csv") {
@@ -347,7 +356,7 @@ func loadRecipients(filePath, recipientsStr string) []RecipientData {
 func loadRecipientsFromTxt(filePath string) []RecipientData {
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Printf("⚠️ 警告: 无法打开文本文件 '%s', 将跳过此文件: %v", filePath, err)
+		log.Printf("⚠️ Warning: Cannot open text file '%s', skipping: %v", filePath, err)
 		return nil
 	}
 	defer file.Close()
@@ -362,7 +371,7 @@ func loadRecipientsFromTxt(filePath string) []RecipientData {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Printf("⚠️ 警告: 读取文件 '%s' 时发生错误: %v", filePath, err)
+		log.Printf("⚠️ Warning: Error reading file '%s': %v", filePath, err)
 	}
 	return data
 }
@@ -370,18 +379,18 @@ func loadRecipientsFromTxt(filePath string) []RecipientData {
 func loadRecipientsFromCSV(filePath string) []RecipientData {
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Fatalf("❌ 无法打开 CSV 文件 '%s': %v", filePath, err)
+		log.Fatalf("❌ Cannot open CSV file '%s': %v", filePath, err)
 	}
 	defer file.Close()
 
 	reader := csv.NewReader(file)
 	records, err := reader.ReadAll()
 	if err != nil {
-		log.Fatalf("❌ 解析 CSV 文件失败: %v", err)
+		log.Fatalf("❌ Failed to parse CSV file: %v", err)
 	}
 
 	if len(records) < 2 {
-		log.Fatal("❌ CSV 文件至少需要一个标题行和一行数据。")
+		log.Fatal("❌ CSV file must have at least a header row and one data row.")
 	}
 
 	header := records[0]
@@ -391,7 +400,7 @@ func loadRecipientsFromCSV(filePath string) []RecipientData {
 	}
 
 	if _, ok := headerMap["email"]; !ok {
-		log.Fatal("❌ CSV 文件必须包含一个名为 'email' 的列。")
+		log.Fatal("❌ CSV file must contain a column named 'email'.")
 	}
 
 	var data []RecipientData
@@ -401,7 +410,7 @@ func loadRecipientsFromCSV(filePath string) []RecipientData {
 			recipient.Email = row[idx]
 		}
 		if recipient.Email == "" {
-			log.Printf("⚠️ 警告: CSV 第 %d 行缺少 email，已跳过。", i+2)
+			log.Printf("⚠️ Warning: Row %d in CSV is missing an email, skipping.", i+2)
 			continue
 		}
 		if idx, ok := headerMap["title"]; ok {
@@ -430,7 +439,7 @@ func loadRecipientsFromCSV(filePath string) []RecipientData {
 	return data
 }
 
-// buildFinalPrompts 为每个收件人构建最终的提示词
+// buildFinalPrompts builds the final prompt for each recipient
 func buildFinalPrompts(recipients []RecipientData, basePrompt, promptName, instructionsStr string, aiCfg *config.AIConfig) []string {
 	var finalPrompts []string
 
@@ -439,11 +448,11 @@ func buildFinalPrompts(recipients []RecipientData, basePrompt, promptName, instr
 		if p, ok := aiCfg.Prompts[promptName]; ok {
 			finalBasePrompt = p
 		} else {
-			log.Fatalf("❌ 找不到名为 '%s' 的预设提示词。", promptName)
+			log.Fatalf("❌ Preset prompt '%s' not found.", promptName)
 		}
 	}
-	if finalBasePrompt == "" {
-		log.Fatal("❌ 必须通过 -prompt 或 -prompt-name 提供一个基础 prompt。")
+	if finalBasePrompt == "" && len(recipients) > 0 && recipients[0].CustomPrompt == "" {
+		log.Fatal("❌ A base prompt must be provided via -prompt or -prompt-name if not all recipients have a CustomPrompt in the CSV.")
 	}
 
 	var instructionBuilder strings.Builder
@@ -455,29 +464,30 @@ func buildFinalPrompts(recipients []RecipientData, basePrompt, promptName, instr
 				instructionBuilder.WriteString(instr)
 				instructionBuilder.WriteString("\n")
 			} else {
-				log.Printf("⚠️ 警告: 找不到名为 '%s' 的结构化指令。", trimmedName)
+				log.Printf("⚠️ Warning: Structured instruction '%s' not found.", trimmedName)
 			}
 		}
 	}
 
+	baseInstructions := instructionBuilder.String()
 	for _, r := range recipients {
 		var prompt strings.Builder
-		prompt.WriteString(instructionBuilder.String())
-		if r.CustomPrompt != "" {
-			prompt.WriteString("核心思想: \"" + r.CustomPrompt + "\"\n")
-		} else {
-			prompt.WriteString("核心思想: \"" + finalBasePrompt + "\"\n")
-		}
+		prompt.WriteString(baseInstructions)
+
+		// Use CustomPrompt from CSV if available, otherwise use the base prompt
+		currentCoreIdea := coalesce(r.CustomPrompt, finalBasePrompt)
+		prompt.WriteString("Core idea: \"" + currentCoreIdea + "\"\n")
+
 		finalPrompts = append(finalPrompts, prompt.String())
 	}
 	return finalPrompts
 }
 
-// selectAccount 根据策略选择一个发件箱账户名
+// selectAccount selects a sender account name based on the strategy
 func selectAccount(strategy config.SendingStrategy, index int) string {
 	numAccounts := len(strategy.Accounts)
 	if numAccounts == 0 {
-		log.Fatal("❌ 策略中没有配置任何发件账户。")
+		log.Fatal("❌ No sender accounts configured in the strategy.")
 	}
 
 	switch strategy.Policy {
@@ -486,11 +496,12 @@ func selectAccount(strategy config.SendingStrategy, index int) string {
 	case "random":
 		return strategy.Accounts[rand.Intn(numAccounts)]
 	default:
-		return strategy.Accounts[0]
+		// Default to round-robin if policy is unknown or not specified
+		return strategy.Accounts[index%numAccounts]
 	}
 }
 
-// coalesce 返回第一个非空的字符串
+// coalesce returns the first non-empty string from a list of strings
 func coalesce(values ...string) string {
 	for _, v := range values {
 		if v != "" {

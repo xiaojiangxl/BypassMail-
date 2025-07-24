@@ -8,18 +8,19 @@ import (
 	"time"
 )
 
-// LogEntry 记录单次邮件发送的详细信息
+// LogEntry 结构体和 reportTemplate 常量保持不变...
+// LogEntry records a single email sending detail
 type LogEntry struct {
-	Timestamp string // 发送时间
-	Sender    string // 发送账号
-	Recipient string // 收件人
-	Subject   string // 邮件标题
-	Status    string // 发送状态 ("Success" 或 "Failed")
-	Error     string // 如果失败，记录错误信息
-	Content   string // 发送的邮件内容(HTML)
+	Timestamp string // Sending time
+	Sender    string // Sender account
+	Recipient string // Recipient
+	Subject   string // Email subject
+	Status    string // Sending status ("Success" or "Failed")
+	Error     string // Error message if failed
+	Content   string // Sent email content (HTML)
 }
 
-// reportTemplate 是用于生成HTML报告的模板字符串
+// reportTemplate is the template string for generating the HTML report
 const reportTemplate = `
 <!DOCTYPE html>
 <html lang="zh">
@@ -117,22 +118,19 @@ const reportTemplate = `
 </html>
 `
 
-// GenerateHTMLReport 根据日志条目生成HTML报告文件
-func GenerateHTMLReport(logEntries []LogEntry) (string, error) {
+// WriteHTMLReport 根据给定的文件名和日志条目，生成或覆盖HTML报告文件
+func WriteHTMLReport(fileName string, logEntries []LogEntry) error {
 	t, err := template.New("report").Parse(reportTemplate)
 	if err != nil {
-		return "", fmt.Errorf("无法解析HTML报告模板: %w", err)
+		return fmt.Errorf("无法解析HTML报告模板: %w", err)
 	}
 
-	// 创建一个带时间戳的文件名
-	fileName := fmt.Sprintf("BypassMail-Report-%s.html", time.Now().Format("20060102-150405"))
 	file, err := os.Create(fileName)
 	if err != nil {
-		return "", fmt.Errorf("无法创建报告文件 '%s': %w", fileName, err)
+		return fmt.Errorf("无法创建或覆盖报告文件 '%s': %w", fileName, err)
 	}
 	defer file.Close()
 
-	// 准备模板所需的数据
 	data := struct {
 		GenerationDate string
 		Logs           []LogEntry
@@ -141,11 +139,21 @@ func GenerateHTMLReport(logEntries []LogEntry) (string, error) {
 		Logs:           logEntries,
 	}
 
-	// 将数据渲染到模板并写入文件
 	if err = t.Execute(file, data); err != nil {
-		return "", fmt.Errorf("无法渲染HTML报告: %w", err)
+		return fmt.Errorf("无法渲染HTML报告: %w", err)
 	}
 
-	log.Printf("✅ HTML 报告已成功生成: %s", fileName)
+	log.Printf("✅ HTML 报告已更新: %s (%d 条记录)", fileName, len(logEntries))
+	return nil
+}
+
+// GenerateHTMLReport 创建一个带时间戳的新报告文件。
+// 这个函数现在只是为了方便，它在内部调用 WriteHTMLReport。
+func GenerateHTMLReport(logEntries []LogEntry) (string, error) {
+	fileName := fmt.Sprintf("BypassMail-Report-%s.html", time.Now().Format("20060102-150405"))
+	err := WriteHTMLReport(fileName, logEntries)
+	if err != nil {
+		return "", err
+	}
 	return fileName, nil
 }
