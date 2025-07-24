@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings" // 引入 strings 包
 )
 
 const deepseekAPIURL = "https://api.deepseek.com/chat/completions"
@@ -95,15 +96,27 @@ func (p *DeepseekProvider) GenerateVariations(ctx context.Context, basePrompt st
 		return nil, fmt.Errorf("AI 未能生成有效内容")
 	}
 
+	// --- ✨ 从这里开始是修改的部分 ---
+	rawContent := deepseekResp.Choices[0].Message.Content
+
+	// 1. 移除可能的 markdown 代码块标记
+	if strings.HasPrefix(rawContent, "```json") {
+		rawContent = strings.TrimPrefix(rawContent, "```json")
+		rawContent = strings.TrimSuffix(rawContent, "```")
+	}
+
+	// 2. 清理字符串两边的空白字符
+	rawContent = strings.TrimSpace(rawContent)
+
+	// 3. ✨【关键改动】将字符串中实际的换行符替换为JSON兼容的转义字符'\\n'
+	// 这是为了修复AI模型返回的JSON字符串中未正确转义换行符的问题。
+	// rawContent = strings.ReplaceAll(rawContent, "\n", "\\n")
+
+	// --- 修改结束 ---
+
 	var emailVariations []string
-	rawJSONText := []byte(deepseekResp.Choices[0].Message.Content)
-
-	// 清理可能的 markdown 代码块
-	rawJSONText = bytes.TrimPrefix(rawJSONText, []byte("```json\n"))
-	rawJSONText = bytes.TrimSuffix(rawJSONText, []byte("\n```"))
-
-	if err := json.Unmarshal(rawJSONText, &emailVariations); err != nil {
-		return nil, fmt.Errorf("无法解析 AI 生成的 JSON 内容: %w\n原始文本: %s", err, string(rawJSONText))
+	if err := json.Unmarshal([]byte(rawContent), &emailVariations); err != nil {
+		return nil, fmt.Errorf("无法解析 AI 生成的 JSON 内容: %w\n原始文本: %s", err, rawContent)
 	}
 
 	return emailVariations, nil
