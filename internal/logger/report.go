@@ -21,6 +21,7 @@ type LogEntry struct {
 }
 
 // reportTemplate is the template string for generating the HTML report
+// ✨【关键改动】模板已更新，使用索引作为唯一ID
 const reportTemplate = `
 <!DOCTYPE html>
 <html lang="zh">
@@ -65,24 +66,24 @@ const reportTemplate = `
                 </tr>
             </thead>
             <tbody>
-                {{range .Logs}}
+                {{range $i, $log := .Logs}}
                 <tr>
-                    <td>{{.Timestamp}}</td>
-                    <td>{{.Sender}}</td>
-                    <td>{{.Recipient}}</td>
-                    <td>{{.Subject}}</td>
+                    <td>{{$log.Timestamp}}</td>
+                    <td>{{$log.Sender}}</td>
+                    <td>{{$log.Recipient}}</td>
+                    <td>{{$log.Subject}}</td>
                     <td>
-                        {{if eq .Status "Success"}}
+                        {{if eq $log.Status "Success"}}
                             <span class="status-success">成功</span>
                         {{else}}
                             <span class="status-failed">失败</span>
                         {{end}}
                     </td>
                     <td>
-						{{if eq .Status "Failed"}}
-							<span class="details" onclick="showModal('modal-{{.Recipient}}')">查看错误</span>
+						{{if eq $log.Status "Failed"}}
+							<span class="details" onclick="showModal('modal-{{$i}}')">查看错误</span>
 						{{else}}
-							<span class="details" onclick="showModal('modal-{{.Recipient}}')">查看内容</span>
+							<span class="details" onclick="showModal('modal-{{$i}}')">查看内容</span>
 						{{end}}
 					</td>
                 </tr>
@@ -91,16 +92,16 @@ const reportTemplate = `
         </table>
     </div>
 
-	{{range .Logs}}
-    <div id="modal-{{.Recipient}}" class="modal">
+	{{range $i, $log := .Logs}}
+    <div id="modal-{{$i}}" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeModal('modal-{{.Recipient}}')">&times;</span>
-            <h3>发送详情: {{.Recipient}}</h3>
-            <p><strong>时间:</strong> {{.Timestamp}}</p>
-            <p><strong>状态:</strong> {{.Status}}</p>
-            {{if .Error}}<p><strong>错误信息:</strong><br><pre>{{.Error}}</pre></p>{{end}}
+            <span class="close" onclick="closeModal('modal-{{$i}}')">&times;</span>
+            <h3>发送详情: {{$log.Recipient}}</h3>
+            <p><strong>时间:</strong> {{$log.Timestamp}}</p>
+            <p><strong>状态:</strong> {{$log.Status}}</p>
+            {{if $log.Error}}<p><strong>错误信息:</strong><br><pre>{{$log.Error}}</pre></p>{{end}}
             <p><strong>邮件内容:</strong></p>
-            <iframe srcdoc="{{.Content}}" style="width: 100%; height: 400px; border: 1px solid #ccc;"></iframe>
+            <iframe srcdoc="{{$log.Content}}" style="width: 100%; height: 400px; border: 1px solid #ccc;"></iframe>
         </div>
     </div>
     {{end}}
