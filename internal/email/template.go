@@ -28,7 +28,7 @@ func ParseTemplate(templatePath string, data interface{}) (string, error) {
 	// 如果 data 是 *TemplateData 类型，并且 Date 字段为空，则填充当前日期
 	if td, ok := data.(*TemplateData); ok {
 		if td.Date == "" {
-			td.Date = time.Now().Format("2025-01-02")
+			td.Date = time.Now().Format("2006-01-02")
 		}
 	}
 

@@ -119,42 +119,63 @@ const reportTemplate = `
 </html>
 `
 
-// WriteHTMLReport 根据给定的文件名和日志条目，生成或覆盖HTML报告文件
-func WriteHTMLReport(fileName string, logEntries []LogEntry) error {
+// WriteHTMLReport 根据给定的日志条目，生成或覆盖HTML报告文件
+// 现在它会在日志超过阈值时创建新的分块文件
+func WriteHTMLReport(baseFileName string, logEntries []LogEntry, reportChunkSize int) error {
+	totalLogs := len(logEntries)
+	if totalLogs == 0 {
+		return nil
+	}
+
+	numReports := (totalLogs + reportChunkSize - 1) / reportChunkSize
+
 	t, err := template.New("report").Parse(reportTemplate)
 	if err != nil {
 		return fmt.Errorf("无法解析HTML报告模板: %w", err)
 	}
 
-	file, err := os.Create(fileName)
-	if err != nil {
-		return fmt.Errorf("无法创建或覆盖报告文件 '%s': %w", fileName, err)
-	}
-	defer file.Close()
+	for i := 0; i < numReports; i++ {
+		start := i * reportChunkSize
+		end := start + reportChunkSize
+		if end > totalLogs {
+			end = totalLogs
+		}
+		chunkLogs := logEntries[start:end]
 
-	data := struct {
-		GenerationDate string
-		Logs           []LogEntry
-	}{
-		GenerationDate: time.Now().Format("2006-01-02 15:04:05"),
-		Logs:           logEntries,
+		// 为每个分块文件生成一个唯一的文件名
+		var chunkFileName string
+		// 如果只有一个报告，则不添加 part 后缀
+		if numReports > 1 {
+			chunkFileName = fmt.Sprintf("%s-part-%d.html", baseFileName, i+1)
+		} else {
+			// 移除 .html 后缀（如果存在）再添加，以避免重复
+			base := baseFileName
+			if ext := ".html"; len(base) > len(ext) && base[len(base)-len(ext):] == ext {
+				base = base[:len(base)-len(ext)]
+			}
+			chunkFileName = fmt.Sprintf("%s.html", base)
+		}
+
+		file, err := os.Create(chunkFileName)
+		if err != nil {
+			return fmt.Errorf("无法创建或覆盖报告文件 '%s': %w", chunkFileName, err)
+		}
+		defer file.Close()
+
+		data := struct {
+			GenerationDate string
+			Logs           []LogEntry
+		}{
+			GenerationDate: time.Now().Format("2006-01-02 15:04:05"),
+			Logs:           chunkLogs,
+		}
+
+		if err = t.Execute(file, data); err != nil {
+			// 在关闭文件前返回错误
+			return fmt.Errorf("无法为 '%s' 渲染HTML报告: %w", chunkFileName, err)
+		}
+		log.Printf("✅ HTML 报告分块已生成/更新: %s (%d 条记录)", chunkFileName, len(chunkLogs))
 	}
 
-	if err = t.Execute(file, data); err != nil {
-		return fmt.Errorf("无法渲染HTML报告: %w", err)
-	}
-
-	log.Printf("✅ HTML 报告已更新: %s (%d 条记录)", fileName, len(logEntries))
 	return nil
-}
-
-// GenerateHTMLReport 创建一个带时间戳的新报告文件。
-// 这个函数现在只是为了方便，它在内部调用 WriteHTMLReport。
-func GenerateHTMLReport(logEntries []LogEntry) (string, error) {
-	fileName := fmt.Sprintf("BypassMail-Report-%s.html", time.Now().Format("20060102-150405"))
-	err := WriteHTMLReport(fileName, logEntries)
-	if err != nil {
-		return "", err
-	}
-	return fileName, nil
 }

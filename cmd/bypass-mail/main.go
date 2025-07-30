@@ -26,6 +26,8 @@ var (
 const (
 	// 定义批处理大小
 	batchSize = 50
+	// 定义报告分块大小
+	reportChunkSize = 1000
 )
 
 // RecipientData 用于存储从 CSV 或其他来源读取的每一行个性化数据
@@ -180,11 +182,7 @@ func main() {
 	logChan := make(chan logger.LogEntry, totalRecipients) // 为所有可能的日志设置缓冲区
 	var wg sync.WaitGroup
 
-	// ✨ 在循环外初始化报告文件名和主日志列表
-	reportFileName := fmt.Sprintf("BypassMail-Report-%s.html", time.Now().Format("20060102-150405"))
 	var allLogEntries []logger.LogEntry
-
-	// ✨ **已修复**：正确计算 totalBatches
 	totalBatches := (totalRecipients + batchSize - 1) / batchSize
 
 	for i := 0; i < totalRecipients; i += batchSize {
@@ -311,25 +309,25 @@ func main() {
 		}
 		// 等待当前批次中的所有电子邮件都已发送
 		wg.Wait()
-
-		// ✨ **已修复**: 从通道收集日志并更新报告
-		batchLogCount := len(batchRecipients)
-		for k := 0; k < batchLogCount; k++ {
-			entry := <-logChan
-			allLogEntries = append(allLogEntries, entry)
-		}
-
-		if err := logger.WriteHTMLReport(reportFileName, allLogEntries); err != nil {
-			log.Printf("❌ 更新 HTML 报告失败: %v", err)
-		}
-
 		log.Printf("--- 批次 %d / %d 已处理 ---", batchNumber, totalBatches)
 	}
 
 	close(logChan)
 
+	// 从通道收集所有日志
+	for entry := range logChan {
+		allLogEntries = append(allLogEntries, entry)
+	}
+
 	// --- 8. 生成最终报告 ---
-	// 报告已经生成/更新，这只是最后一条消息。
+	if len(allLogEntries) > 0 {
+		log.Println("--- 正在生成最终的 HTML 报告 ---")
+		baseReportName := fmt.Sprintf("BypassMail-Report-%s", time.Now().Format("20060102-150405"))
+		if err := logger.WriteHTMLReport(baseReportName, allLogEntries, reportChunkSize); err != nil {
+			log.Fatalf("❌ 生成最终 HTML 报告失败: %v", err)
+		}
+	}
+
 	log.Println("🎉 所有邮件任务均已处理完毕！")
 }
 
