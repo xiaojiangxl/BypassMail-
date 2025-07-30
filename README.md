@@ -2,6 +2,8 @@
 
 **BypassMail** 是一款专为网络安全专业人士、红队渗透测试人员和安全研究员设计的邮件发送工具。它利用先进的人工智能技术和多样化的发送策略，旨在绕过主流的邮件安全网关（ESG）、垃圾邮件过滤器和各种反钓鱼检测机制。
 
+<img src="https://github.com/xiaojiangxl/BypassMail-/blob/main/img/main.png" width="100%">
+
 ## 核心规避技术 (Core Evasion Techniques)
 
 传统的邮件群发工具因其固定的内容和发送模式极易被安全系统拦截。BypassMail 采用以下多层混合技术，显著提高邮件送达率和隐蔽性：
@@ -29,6 +31,26 @@
 * **红队渗透测试**: 作为社会工程学攻击的一环，向目标发送嵌入链接或附件的邮件，以获取初始访问权限。
 * **邮件安全产品评估**: 测试和验证您的邮件安全网关（ESG）或终端防护（EDR）产品在面对高级规避技术时的真实表现。
 * **垃圾邮件过滤机制研究**: 深入探究不同邮件服务商（如 Gmail, Office 365）的垃圾邮件过滤算法和检测逻辑。
+## 功能截图
+<img src="https://github.com/xiaojiangxl/BypassMail-/blob/main/img/1.png" width="100%">
+
+<p>运行时日志</p>
+
+<img src="https://github.com/xiaojiangxl/BypassMail-/blob/main/img/2.png" width="100%">
+
+<p>发送状态概览</p>
+
+<img src="https://github.com/xiaojiangxl/BypassMail-/blob/main/img/3.png" width="100%">
+
+<p>HTML报告</p>
+
+<img src="https://github.com/xiaojiangxl/BypassMail-/blob/main/img/4.png" width="100%">
+
+<p>发送成功详情</p>
+
+<img src="https://github.com/xiaojiangxl/BypassMail-/blob/main/img/5.png" width="100%">
+
+<p>发送失败详情</p>
 
 ## 快速上手
 ### 命令行参数
