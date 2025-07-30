@@ -73,7 +73,7 @@ const reportTemplate = `
                     <td>{{$log.Recipient}}</td>
                     <td>{{$log.Subject}}</td>
                     <td>
-                        {{if eq $log.Status "Success"}}
+                        {{if eq $log.Status "成功"}}
                             <span class="status-success">成功</span>
                         {{else}}
                             <span class="status-failed">失败</span>
