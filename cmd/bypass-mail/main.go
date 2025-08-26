@@ -63,8 +63,6 @@ func testAccounts(cfg *config.Config, strategyName string) {
 				return
 			}
 			sender := email.NewSender(smtpCfg)
-			// 在测试模式下，我们传递一个空的收件人地址。
-			// sender.Send 函数将处理此问题，并且仅执行连接和身份验证测试。
 			if err := sender.Send("", "", "", ""); err != nil {
 				results <- fmt.Sprintf("  - [ %-20s ] ❌ 失败: %v", smtpCfg.Username, err)
 			} else {
@@ -179,10 +177,38 @@ func main() {
 	}
 
 	totalRecipients := len(allRecipientsData)
-	logChan := make(chan logger.LogEntry, totalRecipients) // 为所有可能的日志设置缓冲区
+	logChan := make(chan logger.LogEntry, totalRecipients)
 	var wg sync.WaitGroup
 
+	// ✨【关键改动】: 初始化一个 slice 和一个互斥锁来安全地追加日志
 	var allLogEntries []logger.LogEntry
+	var logMutex sync.Mutex
+
+	// ✨【关键改动】: 启动一个独立的 goroutine 来处理日志和报告生成
+	var reportWg sync.WaitGroup
+	reportWg.Add(1)
+	go func() {
+		defer reportWg.Done()
+		// ✨ 一旦程序开始，就确定报告的基础文件名
+		baseReportName := fmt.Sprintf("BypassMail-Report-%s", time.Now().Format("20060102-150405"))
+
+		// ✨ 循环监听日志通道，直到它被关闭
+		for entry := range logChan {
+			logMutex.Lock()
+			allLogEntries = append(allLogEntries, entry)
+			// ✨ 创建一个当前日志的快照，以避免在写文件时长时间锁定
+			currentEntriesSnapshot := make([]logger.LogEntry, len(allLogEntries))
+			copy(currentEntriesSnapshot, allLogEntries)
+			logMutex.Unlock()
+
+			// ✨ 每收到一条新日志，就调用 WriteHTMLReport 更新报告
+			// ✨ report.go 中的逻辑会自动处理超过1000条记录时的分块
+			if err := logger.WriteHTMLReport(baseReportName, currentEntriesSnapshot, reportChunkSize); err != nil {
+				log.Printf("❌ 实时更新HTML报告失败: %v", err)
+			}
+		}
+	}()
+
 	totalBatches := (totalRecipients + batchSize - 1) / batchSize
 
 	for i := 0; i < totalRecipients; i += batchSize {
@@ -205,7 +231,7 @@ func main() {
 
 		combinedPromptForGeneration := strings.Join(finalPrompts, "\n---\n")
 		variations, err := provider.GenerateVariations(ctx, combinedPromptForGeneration, count)
-		cancel() // 此处不需要 defer，使用后立即取消
+		cancel()
 
 		if err != nil {
 			log.Fatalf("❌ 第 %d 批的 AI 内容生成失败: %v", batchNumber, err)
@@ -240,7 +266,6 @@ func main() {
 					Recipient: recipient.Email,
 				}
 
-				// 使用全局索引 i + recipientIndex 来确定发送帐户
 				accountName := selectAccount(strategy, i+recipientIndex)
 				smtpCfg, ok := cfg.Email.SMTPAccounts[accountName]
 				if !ok {
@@ -256,7 +281,6 @@ func main() {
 
 				addr := strings.TrimSpace(recipient.Email)
 
-				// **图像处理逻辑**
 				var embeddedImgSrc string
 				imgPath := coalesce(recipient.Img, *defaultImg)
 				if imgPath != "" {
@@ -275,7 +299,7 @@ func main() {
 					Name:      coalesce(recipient.Name, *defaultName),
 					URL:       coalesce(recipient.URL, *defaultURL),
 					File:      coalesce(recipient.File, *defaultFile),
-					Img:       embeddedImgSrc, // 使用处理过的 Base64 字符串
+					Img:       embeddedImgSrc,
 					Date:      recipient.Date,
 					Sender:    smtpCfg.Username,
 					Recipient: recipient.Email,
@@ -304,34 +328,25 @@ func main() {
 					log.Printf("  ✔️ 成功发送至 %s", addr)
 					logEntry.Status = "成功"
 				}
+				// ✨【关键改动】: 发送日志到通道，由新的 goroutine 处理
 				logChan <- logEntry
 			}(j, data, variations[j])
 		}
-		// 等待当前批次中的所有电子邮件都已发送
 		wg.Wait()
 		log.Printf("--- 批次 %d / %d 已处理 ---", batchNumber, totalBatches)
 	}
 
+	// ✨【关键改动】: 所有发送任务完成后，关闭日志通道
 	close(logChan)
 
-	// 从通道收集所有日志
-	for entry := range logChan {
-		allLogEntries = append(allLogEntries, entry)
-	}
+	// ✨【关键改动】: 等待报告生成 goroutine 完成所有剩余的日志处理
+	reportWg.Wait()
 
-	// --- 8. 生成最终报告 ---
-	if len(allLogEntries) > 0 {
-		log.Println("--- 正在生成最终的 HTML 报告 ---")
-		baseReportName := fmt.Sprintf("BypassMail-Report-%s", time.Now().Format("20060102-150405"))
-		if err := logger.WriteHTMLReport(baseReportName, allLogEntries, reportChunkSize); err != nil {
-			log.Fatalf("❌ 生成最终 HTML 报告失败: %v", err)
-		}
-	}
-
+	// ✨【关键改动】: 移除了原来在此处的最终报告生成逻辑
 	log.Println("🎉 所有邮件任务均已处理完毕！")
 }
 
-// loadRecipients 首先处理 CSV，然后是 TXT，最后是命令行字符串
+// loadRecipients 函数保持不变...
 func loadRecipients(filePath, recipientsStr string) []RecipientData {
 	if filePath != "" {
 		if strings.HasSuffix(strings.ToLower(filePath), ".csv") {
@@ -351,6 +366,7 @@ func loadRecipients(filePath, recipientsStr string) []RecipientData {
 	return nil
 }
 
+// loadRecipientsFromTxt 函数保持不变...
 func loadRecipientsFromTxt(filePath string) []RecipientData {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -374,6 +390,7 @@ func loadRecipientsFromTxt(filePath string) []RecipientData {
 	return data
 }
 
+// loadRecipientsFromCSV 函数保持不变...
 func loadRecipientsFromCSV(filePath string) []RecipientData {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -437,7 +454,7 @@ func loadRecipientsFromCSV(filePath string) []RecipientData {
 	return data
 }
 
-// buildFinalPrompts 为每个收件人构建最终的提示
+// buildFinalPrompts 函数保持不变...
 func buildFinalPrompts(recipients []RecipientData, basePrompt, promptName, instructionsStr string, aiCfg *config.AIConfig) []string {
 	var finalPrompts []string
 
@@ -472,7 +489,6 @@ func buildFinalPrompts(recipients []RecipientData, basePrompt, promptName, instr
 		var prompt strings.Builder
 		prompt.WriteString(baseInstructions)
 
-		// 如果 CSV 中有 CustomPrompt，则使用它，否则使用基本提示
 		currentCoreIdea := coalesce(r.CustomPrompt, finalBasePrompt)
 		prompt.WriteString("核心思想: \"" + currentCoreIdea + "\"\n")
 
@@ -481,7 +497,7 @@ func buildFinalPrompts(recipients []RecipientData, basePrompt, promptName, instr
 	return finalPrompts
 }
 
-// selectAccount 根据策略选择发件人帐户名
+// selectAccount 函数保持不变...
 func selectAccount(strategy config.SendingStrategy, index int) string {
 	numAccounts := len(strategy.Accounts)
 	if numAccounts == 0 {
@@ -494,12 +510,11 @@ func selectAccount(strategy config.SendingStrategy, index int) string {
 	case "random":
 		return strategy.Accounts[rand.Intn(numAccounts)]
 	default:
-		// 如果策略未知或未指定，则默认为循环
 		return strategy.Accounts[index%numAccounts]
 	}
 }
 
-// coalesce 返回字符串列表中第一个非空字符串
+// coalesce 函数保持不变...
 func coalesce(values ...string) string {
 	for _, v := range values {
 		if v != "" {
