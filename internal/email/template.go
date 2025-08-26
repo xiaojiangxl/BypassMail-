@@ -2,6 +2,7 @@ package email
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 	"time"
 )
@@ -29,6 +30,7 @@ func ParseTemplate(templatePath string, data interface{}) (string, error) {
 	if td, ok := data.(*TemplateData); ok {
 		if td.Date == "" {
 			td.Date = time.Now().Format("2006-01-02")
+			fmt.Println(td.Date)
 		}
 	}
 

@@ -22,6 +22,7 @@ type LogEntry struct {
 
 // reportTemplate is the template string for generating the HTML report
 // ✨【关键改动】模板已更新，使用索引作为唯一ID
+// ...existing code...
 const reportTemplate = `
 <!DOCTYPE html>
 <html lang="zh">
@@ -41,8 +42,9 @@ const reportTemplate = `
         tr:hover { background-color: #f1f1f1; }
         .status-success { color: #28a745; font-weight: bold; }
         .status-failed { color: #dc3545; font-weight: bold; }
-        .details { cursor: pointer; color: #007bff; text-decoration: underline; }
-		.modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .details { cursor: pointer; color: #007bff; text-decoration: underline; display: inline-block; }
+        td.details-cell { white-space: nowrap; }
+        .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 800px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
         .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
         .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
@@ -79,20 +81,20 @@ const reportTemplate = `
                             <span class="status-failed">失败</span>
                         {{end}}
                     </td>
-                    <td>
-						{{if eq $log.Status "Failed"}}
-							<span class="details" onclick="showModal('modal-{{$i}}')">查看错误</span>
-						{{else}}
-							<span class="details" onclick="showModal('modal-{{$i}}')">查看内容</span>
-						{{end}}
-					</td>
+                    <td class="details-cell">
+                        {{if eq $log.Status "Failed"}}
+                            <span class="details" onclick="showModal('modal-{{$i}}')">查看错误</span>
+                        {{else}}
+                            <span class="details" onclick="showModal('modal-{{$i}}')">查看内容</span>
+                        {{end}}
+                    </td>
                 </tr>
                 {{end}}
             </tbody>
         </table>
     </div>
 
-	{{range $i, $log := .Logs}}
+    {{range $i, $log := .Logs}}
     <div id="modal-{{$i}}" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('modal-{{$i}}')">&times;</span>
@@ -118,6 +120,8 @@ const reportTemplate = `
 </body>
 </html>
 `
+
+// ...existing code...
 
 // WriteHTMLReport 根据给定的日志条目，生成或覆盖HTML报告文件
 // 现在它会在日志超过阈值时创建新的分块文件
